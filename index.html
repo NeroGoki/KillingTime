@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>LIGHT TAP EXTREME</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    :root {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --accent-green: #4cd137;
+      --accent-yellow: #fbc531;
+      --accent-red: #e84118;
+      --accent-blue: #00a8ff;
+      --cell-bg: #2c2c2c;
+      --active-bg: #fbc531;
+      --active-shadow: rgba(251, 197, 49, 0.6);
+      --font-family: 'Pretendard', -apple-system, system-ui, sans-serif;
+    }
+
+    /* 테마 정의 */
+    body.theme-cyberpunk {
+      --bg-color: #0f051d; --card-bg: #1a0b2e; --accent-green: #00ffcc;
+      --accent-yellow: #ff007f; --cell-bg: #2a1b40; --active-bg: #ff007f;
+      --active-shadow: rgba(255, 0, 127, 0.8);
+    }
+    body.theme-retro {
+      --bg-color: #0d1b2a; --card-bg: #1b263b; --accent-green: #76c893;
+      --accent-yellow: #f4a261; --cell-bg: #415a77; --active-bg: #f4a261;
+      --active-shadow: rgba(244, 162, 97, 0.8);
+    }
+    body.theme-matrix {
+      --bg-color: #001100; --card-bg: #002200; --accent-green: #00ff00;
+      --accent-yellow: #ccff00; --cell-bg: #003300; --active-bg: #00ff00;
+      --active-shadow: rgba(0, 255, 0, 0.8);
+    }
+    body.theme-sakura {
+      --bg-color: #2b1e23; --card-bg: #3d2b32; --accent-green: #ffb7c5;
+      --accent-yellow: #ffffff; --cell-bg: #543d46; --active-bg: #ffb7c5;
+      --active-shadow: rgba(255, 183, 197, 0.8);
+    }
+    body.theme-sunset {
+      --bg-color: #1a0f1d; --card-bg: #2d1933; --accent-green: #ff7e5f;
+      --accent-yellow: #feb47b; --cell-bg: #472852; --active-bg: #ff7e5f;
+      --active-shadow: rgba(255, 126, 95, 0.8);
+    }
+    /* ✨ 한정판 골드 마스터 전용 차별화 테마 */
+    body.theme-gold-master {
+      --bg-color: #181400; --card-bg: #2b2400; --accent-green: #ffd700;
+      --accent-yellow: #fff2a3; --cell-bg: #423800; --active-bg: #ffd700;
+      --active-shadow: rgba(255, 215, 0, 0.9);
+    }
+
+    body {
+      margin: 0; padding: 0;
+      background-color: var(--bg-color);
+      color: #ffffff;
+      font-family: var(--font-family);
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; overflow: hidden;
+      transition: background-color 0.3s;
+    }
+
+    #particle-canvas {
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      pointer-events: none; z-index: 999;
+    }
+
+    body.hardcore-bg {
+      background-color: #3d0808 !important;
+      animation: pulse-danger 0.8s infinite alternate;
+    }
+    body.freeze-bg { background-color: #052033 !important; }
+
+    @keyframes pulse-danger {
+      0% { background-color: #2b0000; } 100% { background-color: #570000; }
+    }
+
+    .game-container {
+      width: 100%; max-width: 400px; padding: 20px;
+      background-color: var(--card-bg); border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7); text-align: center; position: relative;
+    }
+
+    .shake { animation: shake-anim 0.2s ease-in-out; }
+    @keyframes shake-anim {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; height: 32px;
+    }
+
+    .mode-badge {
+      font-size: 12px; padding: 4px 10px; background: #333;
+      border-radius: 12px; color: #ff9f43; font-weight: bold;
+    }
+
+    .btn-icon {
+      background: none; border: none; color: #fff;
+      font-size: 18px; cursor: pointer; padding: 4px 6px;
+    }
+
+    .num-tabular { font-variant-numeric: tabular-nums; display: inline-block; }
+
+    .status-hud {
+      display: flex; justify-content: space-between; font-size: 14px;
+      font-weight: bold; color: #aaa; margin-bottom: 6px; height: 24px; align-items: center;
+    }
+
+    .score-val { color: var(--accent-green); font-size: 18px; min-width: 40px; text-align: right; }
+    .multiplier-val { color: var(--accent-yellow); font-size: 14px; min-width: 32px; display: inline-block; }
+
+    .gauge-container {
+      width: 100%; height: 12px; background-color: #333;
+      border-radius: 6px; overflow: hidden; margin-bottom: 6px;
+    }
+
+    .gauge-bar { height: 100%; width: 100%; transition: width 0.05s linear; }
+    .main-gauge { background: linear-gradient(90deg, var(--accent-red), var(--accent-yellow), var(--accent-green)); }
+    .main-gauge.frozen { background: #00d2d3 !important; }
+    .item-gauge { background: var(--accent-blue); }
+
+    .item-status-text {
+      font-size: 12px; color: var(--accent-blue); height: 18px;
+      line-height: 18px; font-weight: bold; margin-bottom: 8px;
+    }
+
+    .combo-break-text {
+      position: absolute; top: 45%; left: 50%;
+      transform: translate(-50%, -50%); font-size: 26px; font-weight: 900;
+      color: var(--accent-red); text-shadow: 0 0 10px rgba(232, 65, 24, 0.8);
+      pointer-events: none; z-index: 50; animation: float-up 0.8s forwards ease-out;
+    }
+
+    @keyframes float-up {
+      0% { opacity: 1; transform: translate(-50%, -50%) scale(0.8); }
+      100% { opacity: 0; transform: translate(-50%, -100%) scale(1.2); }
+    }
+
+    .countdown-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.75); border-radius: 20px;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 72px; font-weight: 900; color: var(--accent-yellow);
+      z-index: 80; pointer-events: none;
+    }
+
+    .board-wrapper {
+      width: 100%; height: 320px; display: flex;
+      justify-content: center; align-items: center; margin-bottom: 12px;
+    }
+
+    .grid-board {
+      display: grid; grid-gap: 10px; width: 100%; height: 100%; transition: all 0.2s ease;
+    }
+
+    .grid-3x3 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+    .grid-2x2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); width: 220px; height: 220px; }
+    .grid-4x4 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); grid-gap: 8px; }
+
+    .cell {
+      width: 100%; height: 100%; position: relative;
+      background-color: var(--cell-bg); border-radius: 12px; cursor: pointer;
+      transition: background-color 0.1s, transform 0.05s;
+    }
+
+    .cell:active, .cell.key-pressed { transform: scale(0.92); }
+
+    .cell-key {
+      position: absolute; top: 4px; left: 6px; font-size: 10px; color: #666; font-weight: bold;
+    }
+
+    .cell.active {
+      background-color: var(--active-bg); box-shadow: 0 0 15px var(--active-shadow);
+    }
+
+    .cell.item-tile {
+      background-color: var(--accent-blue) !important;
+      box-shadow: 0 0 18px rgba(0, 168, 255, 0.9) !important;
+      animation: item-pulse 0.6s infinite alternate;
+    }
+
+    @keyframes item-pulse {
+      0% { transform: scale(1); } 100% { transform: scale(1.04); }
+    }
+
+    .cell.bomb-tile {
+      background-color: #3a1515 !important;
+      box-shadow: 0 0 15px rgba(232, 65, 24, 0.8) !important;
+      border-radius: 12px; position: relative;
+    }
+
+    .cell.bomb-tile::before {
+      content: ''; position: absolute;
+      top: -3px; left: -3px; right: -3px; bottom: -3px; border-radius: 15px;
+      background: conic-gradient(var(--accent-red) var(--bomb-angle, 360deg), transparent 0deg);
+      z-index: 1; mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude; -webkit-mask-composite: destination-out; padding: 3px;
+    }
+
+    .cell.blink-hide { opacity: 0.15 !important; }
+    .cell.wrong { background-color: var(--accent-red) !important; }
+
+    .cell-icon {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); font-size: 22px; z-index: 2;
+    }
+
+    .sub-hud {
+      display: flex; justify-content: space-between; font-size: 13px;
+      color: #ccc; height: 20px; align-items: center;
+    }
+
+    .overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg-color);
+      display: flex; flex-direction: column; justify-content: center;
+      align-items: center; z-index: 100; padding: 20px;
+    }
+
+    .overlay h2 { font-size: 26px; margin: 0 0 8px 0; color: var(--accent-green); }
+    .overlay p { font-size: 13px; color: #aaa; margin-bottom: 16px; text-align: center; line-height: 1.4; }
+
+    .death-reason-box {
+      background: rgba(232, 65, 24, 0.15); border: 1px solid var(--accent-red);
+      color: #ff6b6b; padding: 8px 14px; border-radius: 8px;
+      font-size: 13px; font-weight: bold; margin-bottom: 12px;
+    }
+
+    .mode-select-group {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+      width: 100%; max-width: 320px; margin-bottom: 15px;
+    }
+
+    .btn-mode {
+      padding: 10px; background: #222; border: 2px solid #333;
+      color: #fff; border-radius: 10px; cursor: pointer;
+      font-weight: bold; font-size: 13px; transition: all 0.2s;
+    }
+
+    .btn-mode.selected {
+      border-color: var(--accent-green); background: #1a3324; color: var(--accent-green);
+    }
+
+    .btn-start-big {
+      width: 100%; max-width: 320px; padding: 14px; font-size: 18px;
+      font-weight: bold; color: #fff; background: var(--accent-green);
+      border: none; border-radius: 15px; cursor: pointer;
+      box-shadow: 0 4px 15px rgba(76, 209, 55, 0.4); margin-bottom: 15px; transition: transform 0.1s;
+    }
+    .btn-start-big:active { transform: scale(0.97); }
+
+    .sub-menu-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+      width: 100%; max-width: 320px;
+    }
+
+    .btn-square-menu {
+      aspect-ratio: 2.2 / 1; background: #252525; border: 1px solid #3a3a3a;
+      border-radius: 12px; color: #fff; font-size: 14px; font-weight: bold;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-square-menu:hover { background: #333; }
+
+    .btn-group-row { display: flex; gap: 8px; margin-top: 10px; }
+
+    .btn-main {
+      padding: 10px 22px; font-size: 14px; font-weight: bold;
+      color: #fff; background: var(--accent-green); border: none; border-radius: 20px; cursor: pointer;
+    }
+
+    .btn-revive {
+      padding: 10px 22px; font-size: 14px; font-weight: bold;
+      color: #fff; background: #fbc531; border: none; border-radius: 20px; cursor: pointer;
+    }
+
+    .btn-sub {
+      padding: 10px 14px; font-size: 13px; font-weight: bold;
+      color: #ccc; background: #444; border: none; border-radius: 20px; cursor: pointer;
+    }
+
+    .data-table {
+      width: 100%; max-width: 300px; border-collapse: collapse; margin-bottom: 16px; font-size: 13px;
+    }
+    .data-table th, .data-table td { padding: 6px 10px; border-bottom: 1px solid #333; text-align: left; }
+    .data-table th { color: #888; }
+    .data-table td:last-child { text-align: right; color: var(--accent-green); font-weight: bold; }
+
+    .card-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+      width: 100%; max-width: 320px; margin-bottom: 16px; max-height: 240px; overflow-y: auto;
+    }
+
+    .card-item {
+      background: #2a2a2a; padding: 10px; border-radius: 10px;
+      font-size: 12px; text-align: left; border: 1px solid #333; cursor: pointer;
+    }
+    .card-item.locked { opacity: 0.5; }
+    .card-item.unlocked { border-color: var(--accent-yellow); background: #3a321a; }
+    .card-item.active-skin { border-color: var(--accent-green); background: #1e392a; }
+    .card-item .title { font-weight: bold; color: #fff; margin-bottom: 2px; }
+
+    .gacha-result-box {
+      background: #222; border: 2px solid var(--accent-yellow); border-radius: 12px;
+      padding: 12px; width: 100%; max-width: 300px; max-height: 180px; overflow-y: auto;
+      margin-bottom: 15px; font-size: 12px; text-align: left;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <canvas id="particle-canvas"></canvas>
+
+  <div id="game-container" class="game-container">
+    <div id="countdown-layer" class="countdown-overlay hidden">3</div>
+
+    <div class="top-bar">
+      <span id="mode-badge" class="mode-badge">NORMAL</span>
+      <div>
+        <span style="font-size:12px; color:#fbc531; font-weight:bold; margin-right:6px;">🪙 <span id="coin-hud">0</span></span>
+        <button class="btn-icon" onclick="openScoreboard()">📊</button>
+        <button class="btn-icon" onclick="openAchievements()">🏆</button>
+        <button class="btn-icon" onclick="openShop()">🎨</button>
+        <button class="btn-icon" onclick="togglePause()">⏸️</button>
+      </div>
+    </div>
+
+    <div class="status-hud">
+      <span>BEST: <span id="best-score" class="num-tabular">0</span></span>
+      <span>SCORE: <span id="score" class="score-val num-tabular">0</span><span id="multiplier" class="multiplier-val"></span></span>
+    </div>
+
+    <div class="gauge-container">
+      <div id="main-gauge" class="gauge-bar main-gauge"></div>
+    </div>
+
+    <div class="gauge-container">
+      <div id="item-gauge" class="gauge-bar item-gauge" style="width:0%;"></div>
+    </div>
+    <div id="item-status-text" class="item-status-text"></div>
+
+    <div class="board-wrapper">
+      <div id="board" class="grid-board grid-3x3"></div>
+    </div>
+
+    <div class="sub-hud">
+      <span>🛡️ 실드: <span id="shield-count" class="num-tabular">0</span>/1 (<span id="shield-combo" class="num-tabular">0</span>/25)</span>
+      <span>🔥 콤보: <span id="combo-count" class="num-tabular">0</span></span>
+    </div>
+  </div>
+
+  <!-- 메인 / 모드 선택 오버레이 -->
+  <div id="start-overlay" class="overlay">
+    <div style="font-size:14px; color:#fbc531; font-weight:bold; margin-bottom:12px;">
+      🪙 보유 코인: <span id="main-coin-hud">0</span> | 🧩 꽝 조각: <span id="piece-hud">0</span>/10
+    </div>
+    <h2>LIGHT TAP EXTREME</h2>
+    <p>모드를 선택하고 시작하세요!</p>
+    
+    <div class="mode-select-group">
+      <button class="btn-mode selected" onclick="selectMode('NORMAL')">🟢 노멀</button>
+      <button class="btn-mode" onclick="selectMode('CASUAL')">🔵 캐주얼</button>
+      <button class="btn-mode" onclick="selectMode('HARD')">🔴 하드</button>
+      <button class="btn-mode" onclick="selectMode('PRACTICE')">🟡 연습/무한</button>
+    </div>
+
+    <div id="practice-toggle-box" class="toggle-box hidden">
+      <input type="checkbox" id="practice-item-toggle" checked>
+      <label for="practice-item-toggle">연습 모드에서 아이템 허용</label>
+    </div>
+
+    <button class="btn-start-big" onclick="startWithCountdown()">🎮 게임 시작 (Space)</button>
+
+    <div class="sub-menu-grid">
+      <div class="btn-square-menu" onclick="openGacha()">🎰 행운 뽑기</div>
+      <div class="btn-square-menu" onclick="openDaily()">📅 일일 미션</div>
+      <div class="btn-square-menu" onclick="openScoreboard()">📊 점수판</div>
+      <div class="btn-square-menu" onclick="openShop()">🎨 스킨/칭호</div>
+    </div>
+  </div>
+
+  <!-- 게임 오버 오버레이 -->
+  <div id="gameover-overlay" class="overlay hidden">
+    <h2 style="color:var(--accent-red);">GAME OVER</h2>
+    <div id="death-reason" class="death-reason-box">시간 초과!</div>
+    <p>
+      최종 점수: <span id="final-score" style="color:#fff; font-weight:bold; font-size:20px;" class="num-tabular">0</span>점<br>
+      획득 코인: +<span id="earned-coins" style="color:#fbc531; font-weight:bold;">0</span>🪙<br>
+      <small id="revive-coin-note" style="color:#fbc531; display:block; margin-top:4px; font-size:11px;">
+        * 부활 후 추가 점수는 코인으로 환산되지 않습니다.
+      </small>
+      <span id="new-record-text" style="color:var(--accent-yellow); font-weight:bold; display:block; margin-top:6px;" class="hidden">🎉 최고 기록 경신! 🎉</span>
+    </p>
+    
+    <div class="btn-group-row">
+      <button class="btn-sub" onclick="confirmExitToMain()">메뉴로</button>
+      <button id="btn-revive" class="btn-revive" onclick="tryRevive()">❤️ 부활 (<span id="revive-cost">50</span>🪙)</button>
+      <button class="btn-main" onclick="startWithCountdown()">다시하기</button>
+    </div>
+  </div>
+
+  <!-- 일시 정지 오버레이 -->
+  <div id="pause-overlay" class="overlay hidden">
+    <h2>PAUSED</h2>
+    <p>일시 정지 중입니다.</p>
+    <button class="btn-main" onclick="resumeWithCountdown()" style="margin-bottom:10px;">계속하기</button>
+    <button class="btn-sub" onclick="confirmExitToMain()">메인 메뉴로</button>
+  </div>
+
+  <!-- 🎰 행운 뽑기 오버레이 -->
+  <div id="gacha-overlay" class="overlay hidden">
+    <h2>🎰 행운의 뽑기</h2>
+    <p>
+      보유 코인: <span id="gacha-coin" style="color:#fbc531; font-weight:bold;">0</span>🪙 | 
+      꽝 조각: <span id="gacha-piece" style="color:#00a8ff; font-weight:bold;">0</span>/10
+    </p>
+
+    <div id="gacha-result" class="gacha-result-box hidden"></div>
+
+    <div class="btn-group-row" style="flex-direction:column; gap:8px; width:100%; max-width:280px; margin-bottom:15px;">
+      <button class="btn-main" onclick="drawGacha(1)">1회 뽑기 (30🪙)</button>
+      <button class="btn-revive" onclick="drawGacha(10)">✨ 10연 뽑기 (300🪙)</button>
+      <button id="btn-piece-draw" class="btn-sub" onclick="drawGachaWithPieces()" style="background:#00a8ff; color:#fff;">
+        🧩 조각 10개로 1회 무료 뽑기
+      </button>
+    </div>
+    <button class="btn-sub" onclick="closeOverlay('gacha-overlay')">닫기</button>
+  </div>
+
+  <!-- 점수판 오버레이 -->
+  <div id="scoreboard-overlay" class="overlay hidden">
+    <h2>모드별 최고 점수</h2>
+    <table class="data-table">
+      <tr><th>노멀 (Normal)</th><td id="sb-normal">0점</td></tr>
+      <tr><th>캐주얼 (Casual)</th><td id="sb-casual">0점</td></tr>
+      <tr><th>하드 (Hard)</th><td id="sb-hard">0점</td></tr>
+      <tr><th>연습 (Practice)</th><td id="sb-practice">0점</td></tr>
+    </table>
+    <button class="btn-main" onclick="closeOverlay('scoreboard-overlay')">닫기</button>
+  </div>
+
+  <!-- 일일 미션 오버레이 -->
+  <div id="daily-overlay" class="overlay hidden">
+    <h2>📅 일일 미션</h2>
+    <p style="margin-bottom:10px;">매일 자정에 미션이 리셋됩니다.</p>
+    <div id="daily-list" style="width:100%; max-width:300px; margin-bottom:15px;"></div>
+    <button class="btn-main" onclick="closeOverlay('daily-overlay')">닫기</button>
+  </div>
+
+  <!-- 테마 상점 오버레이 -->
+  <div id="shop-overlay" class="overlay hidden">
+    <h2>🎨 스킨 & 칭호 상점</h2>
+    <p>보유 코인: <span id="shop-coin-count" style="color:#fbc531; font-weight:bold;">0</span>🪙</p>
+    <div id="shop-grid" class="card-grid"></div>
+    <button class="btn-main" onclick="closeOverlay('shop-overlay')">닫기</button>
+  </div>
+
+  <!-- 업적 오버레이 -->
+  <div id="achieve-overlay" class="overlay hidden">
+    <h2>🏆 업적 목록</h2>
+    <div id="achieve-list" class="card-grid"></div>
+    <button class="btn-main" onclick="closeOverlay('achieve-overlay')">닫기</button>
+  </div>
+
+  <script>
+    /* ================= Canvas 파티클 이펙트 ================= */
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function createParticles(x, y, color = '#fbc531') {
+      for (let i = 0; i < 12; i++) {
+        particles.push({
+          x: x, y: y,
+          vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+          size: Math.random() * 5 + 3, color: color, alpha: 1, life: 0.92
+        });
+      }
+    }
+
+    function renderParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.alpha *= p.life;
+        ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        if (p.alpha < 0.05) particles.splice(i, 1);
+      }
+      requestAnimationFrame(renderParticles);
+    }
+    renderParticles();
+
+    /* ================= Web Audio API 사운드 엔진 ================= */
+    const AudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(type, pitchOffset = 0) {
+      if (AudioCtx.state === 'suspended') AudioCtx.resume();
+      const osc = AudioCtx.createOscillator();
+      const gain = AudioCtx.createGain();
+      osc.connect(gain); gain.connect(AudioCtx.destination);
+      const now = AudioCtx.currentTime;
+
+      if (type === 'tap') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(400 + pitchOffset * 20, now);
+        gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now); osc.stop(now + 0.08);
+      } else if (type === 'item') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(523, now);
+        osc.frequency.setValueAtTime(659, now + 0.08); osc.frequency.setValueAtTime(783, now + 0.16);
+        gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      } else if (type === 'wrong') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+        gain.gain.setValueAtTime(0.25, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.start(now); osc.stop(now + 0.25);
+      } else if (type === 'bomb') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+      }
+    }
+
+    /* ================= 테마 스토리지 ================= */
+    const SKINS = [
+      { id: 'default', name: '다크 네온', price: 0, class: '' },
+      { id: 'cyberpunk', name: '사이버펑크', price: 80, class: 'theme-cyberpunk' },
+      { id: 'retro', name: '레트로 아케이드', price: 150, class: 'theme-retro' },
+      { id: 'matrix', name: '매트릭스', price: 200, class: 'theme-matrix' },
+      { id: 'sakura', name: '사쿠라 핑크', price: 250, class: 'theme-sakura' },
+      { id: 'sunset', name: '선셋 골드', price: 300, class: 'theme-sunset' },
+      { id: 'gold_master', name: '✨ 골드 마스터 (한정)', price: 999, class: 'theme-gold-master', gachaOnly: true }
+    ];
+
+    let userCoins = parseInt(localStorage.getItem('lt_coins') || '0');
+    let userPieces = parseInt(localStorage.getItem('lt_pieces') || '0');
+    let unlockedSkins = JSON.parse(localStorage.getItem('lt_skins') || '["default"]');
+    let currentSkin = localStorage.getItem('lt_active_skin') || 'default';
+
+    function updateMainUI() {
+      document.getElementById('coin-hud').innerText = userCoins;
+      document.getElementById('main-coin-hud').innerText = userCoins;
+      document.getElementById('piece-hud').innerText = userPieces;
+    }
+
+    function applySkin(skinId) {
+      currentSkin = skinId;
+      localStorage.setItem('lt_active_skin', skinId);
+      const skinObj = SKINS.find(s => s.id === skinId);
+      document.body.className = skinObj ? skinObj.class : '';
+    }
+
+    function addCoins(amount) {
+      userCoins += amount;
+      localStorage.setItem('lt_coins', userCoins);
+      updateMainUI();
+    }
+
+    function addPieces(amount) {
+      userPieces += amount;
+      localStorage.setItem('lt_pieces', userPieces);
+      updateMainUI();
+    }
+
+    /* ================= 데일리 미션 ================= */
+    const TODAY_KEY = new Date().toISOString().slice(0, 10);
+    let dailyData = JSON.parse(localStorage.getItem('lt_daily') || '{}');
+
+    if (dailyData.date !== TODAY_KEY) {
+      dailyData = {
+        date: TODAY_KEY,
+        missions: [
+          { id: 'm1', desc: '아무 모드나 30점 달성', target: 30, progress: 0, reward: 30, done: false },
+          { id: 'm2', desc: '시한폭탄 2개 해체하기', target: 2, progress: 0, reward: 40, done: false },
+          { id: 'm3', desc: '노멀 모드에서 50점 달성', target: 50, progress: 0, reward: 50, done: false }
+        ]
+      };
+      localStorage.setItem('lt_daily', JSON.stringify(dailyData));
+    }
+
+    function checkDailyProgress(type, val) {
+      let updated = false;
+      dailyData.missions.forEach(m => {
+        if (!m.done) {
+          if (m.id === 'm1' && type === 'SCORE' && val >= m.target) m.progress = m.target;
+          if (m.id === 'm2' && type === 'BOMB') m.progress = Math.min(m.target, m.progress + val);
+          if (m.id === 'm3' && type === 'SCORE_NORMAL' && val >= m.target) m.progress = m.target;
+
+          if (m.progress >= m.target) {
+            m.done = true; addCoins(m.reward); updated = true;
+          }
+        }
+      });
+      if (updated) localStorage.setItem('lt_daily', JSON.stringify(dailyData));
+    }
+
+    /* ================= 업적 데이터 ================= */
+    const ACHIEVEMENTS = [
+      { id: 'first_25', title: '첫 번째 선택', desc: '아이템 첫 경험 (25점 달성)' },
+      { id: 'score_50', title: '숙련된 손가락', desc: '50점 돌파' },
+      { id: 'score_100', title: '전설의 시작', desc: '100점 돌파' },
+      { id: 'shield_save', title: '구원받은 자', desc: '실드로 오답 방어 성공' },
+      { id: 'survive_hardcore', title: '생사의 갈림길', desc: '10초 하드코어 무사 통과' },
+      { id: 'bomb_defuser', title: '폭탄 해체반', desc: '시한폭탄 3개 해체' }
+    ];
+
+    let unlockedAchieves = JSON.parse(localStorage.getItem('lt_achieves') || '[]');
+    function unlockAchieve(id) {
+      if (!unlockedAchieves.includes(id)) {
+        unlockedAchieves.push(id);
+        localStorage.setItem('lt_achieves', JSON.stringify(unlockedAchieves));
+      }
+    }
+
+    /* ================= 게임 변수 ================= */
+    let selectedMode = 'NORMAL';
+    let isPlaying = false;
+    let isPaused = false;
+    let isLocked = false;
+    let isCountingDown = false;
+
+    let score = 0;
+    let combo = 0;
+    let shieldCount = 0;
+    let shieldCombo = 0;
+    let bombsDefused = 0;
+
+    let reviveCount = 0;
+    const REVIVE_COSTS = [50, 100, 200];
+    let initialDeathScore = null;
+
+    let boardDimension = 3;
+    let activeIndices = new Map();
+    
+    let currentTime = 100;
+    let gameLoop = null;
+
+    let activeItemType = null; 
+    let itemTimerInterval = null;
+    let scoreMultiplier = 1;
+    let comboInMultiplier = 0;
+    let blinkInterval = null;
+    let bombAnimLoop = null;
+
+    const KEY_MAPS = {
+      2: { '7':0, '8':1, '4':2, '5':3 },
+      3: { '7':0, '8':1, '9':2, '4':3, '5':4, '6':5, '1':6, '2':7, '3':8 },
+      4: { '7':0, '8':1, '9':2, '/':3, '4':4, '5':5, '6':6, '*':7, '1':8, '2':9, '3':10, '-':11, '0':12, '.':13, 'Enter':14, '+':15 }
+    };
+
+    const container = document.getElementById('game-container');
+    const boardEl = document.getElementById('board');
+    const mainGaugeEl = document.getElementById('main-gauge');
+    const itemGaugeEl = document.getElementById('item-gauge');
+    const itemStatusText = document.getElementById('item-status-text');
+    const scoreEl = document.getElementById('score');
+    const bestScoreEl = document.getElementById('best-score');
+    const multiplierEl = document.getElementById('multiplier');
+    const comboCountEl = document.getElementById('combo-count');
+    const shieldCountEl = document.getElementById('shield-count');
+    const shieldComboEl = document.getElementById('shield-combo');
+    const modeBadgeEl = document.getElementById('mode-badge');
+    const countdownEl = document.getElementById('countdown-layer');
+
+    /* ================= 3-2-1 카운트다운 ================= */
+    function runCountdown(onFinish) {
+      isCountingDown = true;
+      countdownEl.innerText = '3';
+      countdownEl.classList.remove('hidden');
+
+      let count = 3;
+      const cdInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.innerText = count;
+        } else if (count === 0) {
+          countdownEl.innerText = 'GO!';
+        } else {
+          clearInterval(cdInterval);
+          countdownEl.classList.add('hidden');
+          isCountingDown = false;
+          onFinish();
+        }
+      }, 600);
+    }
+
+    function selectMode(mode) {
+      selectedMode = mode;
+      document.querySelectorAll('.btn-mode').forEach(btn => btn.classList.remove('selected'));
+      event.target.classList.add('selected');
+      document.getElementById('practice-toggle-box').classList.toggle('hidden', mode !== 'PRACTICE');
+    }
+
+    function startWithCountdown() {
+      document.getElementById('start-overlay').classList.add('hidden');
+      document.getElementById('gameover-overlay').classList.add('hidden');
+      document.getElementById('pause-overlay').classList.add('hidden');
+
+      initGameState();
+      runCountdown(() => {
+        isPlaying = true;
+        if (gameLoop) clearInterval(gameLoop);
+        gameLoop = setInterval(updateGameLoop, 50);
+
+        if (bombAnimLoop) clearInterval(bombAnimLoop);
+        bombAnimLoop = setInterval(updateBombTimers, 40);
+      });
+    }
+
+    function resumeWithCountdown() {
+      document.getElementById('pause-overlay').classList.add('hidden');
+      runCountdown(() => {
+        isPaused = false;
+      });
+    }
+
+    function initGameState() {
+      score = 0; combo = 0; shieldCount = 0; shieldCombo = 0; bombsDefused = 0;
+      reviveCount = 0; initialDeathScore = null;
+      currentTime = 100; boardDimension = 3;
+      isPlaying = false; isPaused = false; isLocked = false;
+
+      clearAllItemEffects();
+      modeBadgeEl.innerText = selectedMode;
+      updateMainUI();
+      updateBestScoreUI();
+      updateHUD();
+      rebuildBoard();
+    }
+
+    function updateBestScoreUI() {
+      const best = localStorage.getItem(`lt_best_${selectedMode}`) || 0;
+      bestScoreEl.innerText = best;
+    }
+
+    /* 보드 재생성 시 불빛 완전 초기화 적용 */
+    function rebuildBoard() {
+      boardEl.className = `grid-board grid-${boardDimension}x${boardDimension}`;
+      boardEl.innerHTML = '';
+
+      const total = boardDimension * boardDimension;
+      for (let i = 0; i < total; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.setAttribute('data-index', i);
+
+        if (boardDimension === 3) {
+          const keyLabel = document.createElement('span');
+          keyLabel.className = 'cell-key';
+          keyLabel.innerText = [7,8,9,4,5,6,1,2,3][i];
+          cell.appendChild(keyLabel);
+        }
+
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'cell-icon';
+        cell.appendChild(iconSpan);
+
+        boardEl.appendChild(cell);
+      }
+
+      spawnInitialLights();
+    }
+
+    /* 판 크기 N*N에 대해 100% 비우고 정확히 N개만 생성 */
+    function spawnInitialLights() {
+      activeIndices.clear();
+      const targetCount = boardDimension;
+      const total = boardDimension * boardDimension;
+
+      while (activeIndices.size < targetCount) {
+        const rand = Math.floor(Math.random() * total);
+        activeIndices.set(rand, { isItem: false, isBomb: false });
+      }
+      renderBoard();
+    }
+
+    function renderBoard() {
+      const cells = boardEl.querySelectorAll('.cell');
+      cells.forEach((cell, i) => {
+        const data = activeIndices.get(i);
+        const iconSpan = cell.querySelector('.cell-icon');
+        
+        cell.className = 'cell'; iconSpan.innerText = '';
+
+        if (data) {
+          cell.classList.add('active');
+          if (data.isItem) {
+            cell.classList.add('item-tile'); iconSpan.innerText = '🎁';
+          } else if (data.isBomb) {
+            cell.classList.add('bomb-tile'); iconSpan.innerText = '💣';
+          }
+        }
+      });
+    }
+
+    function updateBombTimers() {
+      if (!isPlaying || isPaused || isCountingDown) return;
+
+      const now = Date.now();
+      activeIndices.forEach((data, index) => {
+        if (data.isBomb) {
+          const elapsed = now - data.bombStartTime;
+          const remainingRatio = Math.max(0, (3000 - elapsed) / 3000);
+          const angle = remainingRatio * 360;
+
+          const cell = boardEl.children[index];
+          if (cell) cell.style.setProperty('--bomb-angle', `${angle}deg`);
+
+          if (elapsed >= 3000) {
+            playSound('bomb');
+            gameOver('💣 시한폭탄을 제한시간 내에 누르지 못했습니다!');
+          }
+        }
+      });
+    }
+
+    function updateGameLoop() {
+      if (!isPlaying || isPaused || isCountingDown) return;
+      if (activeItemType === 'FREEZE') return;
+
+      if (selectedMode !== 'PRACTICE') {
+        let drainSpeed = 0.45;
+        if (selectedMode === 'CASUAL') drainSpeed = 0.3;
+        if (selectedMode === 'HARD') drainSpeed = 0.85;
+
+        drainSpeed += (score * 0.012);
+
+        currentTime -= drainSpeed;
+        if (currentTime <= 0) {
+          currentTime = 0;
+          gameOver('⏱️ 시간이 모두 소진되었습니다!');
+        }
+        mainGaugeEl.style.width = currentTime + '%';
+      } else {
+        mainGaugeEl.style.width = '100%';
+      }
+    }
+
+    /* ================= 입력 핸들링 ================= */
+
+    function handleCellClick(index, clickX, clickY) {
+      if (!isPlaying || isPaused || isLocked || isCountingDown) return;
+
+      const cellData = activeIndices.get(index);
+      const targetCell = boardEl.children[index];
+
+      if (clickX && clickY) {
+        createParticles(clickX, clickY, cellData ? '#4cd137' : '#e84118');
+      }
+
+      targetCell.classList.add('key-pressed');
+      setTimeout(() => targetCell.classList.remove('key-pressed'), 100);
+
+      if (cellData) {
+        combo++;
+        if (cellData.isBomb) {
+          bombsDefused++; checkDailyProgress('BOMB', 1);
+        }
+
+        if (shieldCount < 1) {
+          shieldCombo++;
+          if (shieldCombo >= 25) {
+            shieldCount = 1; shieldCombo = 0; playSound('item');
+          }
+        }
+
+        const isItemClick = cellData.isItem;
+        playSound(isItemClick ? 'item' : 'tap', Math.min(combo, 15));
+
+        const addScore = 1 * scoreMultiplier;
+        score += addScore;
+
+        checkDailyProgress('SCORE', score);
+        if (selectedMode === 'NORMAL') checkDailyProgress('SCORE_NORMAL', score);
+
+        if (activeItemType === 'MULTIPLIER') {
+          comboInMultiplier++;
+          if (comboInMultiplier >= 10) {
+            scoreMultiplier++; comboInMultiplier = 0;
+          }
+        }
+
+        const addTime = (selectedMode === 'HARD') ? 8 : 16;
+        currentTime = Math.min(100, currentTime + addTime);
+
+        const canSpawnItem = (selectedMode === 'NORMAL' || selectedMode === 'HARD' || 
+          (selectedMode === 'PRACTICE' && document.getElementById('practice-item-toggle').checked));
+
+        const isItemScore = (score > 0 && score % 25 === 0);
+
+        activeIndices.delete(index);
+
+        if (isItemClick) {
+          const isSizeChange = triggerRandomItem();
+          if (!isSizeChange) {
+            spawnNextLight(index, false); renderBoard();
+          }
+        } else {
+          spawnNextLight(index, isItemScore && canSpawnItem); renderBoard();
+        }
+
+        if (score >= 25) unlockAchieve('first_25');
+        if (score >= 50) unlockAchieve('score_50');
+        if (score >= 100) unlockAchieve('score_100');
+        if (bombsDefused >= 3) unlockAchieve('bomb_defuser');
+
+        updateHUD();
+
+      } else {
+        if (activeItemType === 'HARDCORE') {
+          gameOver('⚠️ 하드코어 모드에서 오답을 눌렀습니다!');
+          return;
+        }
+
+        shieldCombo = 0;
+
+        if (shieldCount > 0) {
+          shieldCount--; playSound('item');
+          unlockAchieve('shield_save');
+          triggerLockEffect(targetCell, false);
+        } else {
+          playSound('wrong'); combo = 0;
+          if (activeItemType === 'MULTIPLIER') {
+            showComboBreakText(); scoreMultiplier = 1; comboInMultiplier = 0;
+          }
+          triggerLockEffect(targetCell, true);
+        }
+        updateHUD();
+      }
+    }
+
+    function showComboBreakText() {
+      const txt = document.createElement('div');
+      txt.className = 'combo-break-text'; txt.innerText = 'COMBO BREAK!';
+      container.appendChild(txt);
+      setTimeout(() => txt.remove(), 800);
+    }
+
+    function spawnNextLight(justRemovedIndex, makeItem = false) {
+      const total = boardDimension * boardDimension;
+      const candidates = [];
+
+      for (let i = 0; i < total; i++) {
+        if (!activeIndices.has(i) && i !== justRemovedIndex) candidates.push(i);
+      }
+
+      const nextIndex = candidates[Math.floor(Math.random() * candidates.length)];
+      const isBomb = (activeItemType === 'BOMB_RAIN' && Math.random() < 0.4);
+
+      activeIndices.set(nextIndex, {
+        isItem: makeItem, isBomb: isBomb, bombStartTime: Date.now()
+      });
+    }
+
+    function triggerLockEffect(cell, lockDuration = true) {
+      container.classList.add('shake'); cell.classList.add('wrong');
+      if (lockDuration) isLocked = true;
+
+      setTimeout(() => {
+        container.classList.remove('shake'); cell.classList.remove('wrong'); isLocked = false;
+      }, lockDuration ? 600 : 200);
+    }
+
+    /* ================= 아이템 시스템 ================= */
+
+    function triggerRandomItem() {
+      clearAllItemEffects();
+
+      const items = ['SIZE_VAR', 'HARDCORE', 'MULTIPLIER', 'BOMB_RAIN', 'BLINK', 'FREEZE'];
+      const picked = items[Math.floor(Math.random() * items.length)];
+
+      if (picked === 'SIZE_VAR') {
+        const isExpand = Math.random() < 0.5;
+        activeItemType = isExpand ? 'SIZE_4' : 'SIZE_2';
+        boardDimension = isExpand ? 4 : 2;
+        itemStatusText.innerText = isExpand ? '📐 맵 확장 (4x4)!' : '📐 맵 축소 (2x2)!';
+        rebuildBoard();
+        return true;
+      } else if (picked === 'HARDCORE') {
+        activeItemType = 'HARDCORE';
+        itemStatusText.innerText = '⚠️ 10초 하드코어! (실수시 사망)';
+        document.body.classList.add('hardcore-bg');
+        startItemTimer(10, () => unlockAchieve('survive_hardcore'));
+      } else if (picked === 'MULTIPLIER') {
+        activeItemType = 'MULTIPLIER'; comboInMultiplier = 0;
+        itemStatusText.innerText = '⚡ 15초 콤보 폭주! (10콤보당 배율+1)';
+        startItemTimer(15);
+      } else if (picked === 'BOMB_RAIN') {
+        activeItemType = 'BOMB_RAIN';
+        itemStatusText.innerText = '💣 10초간 시한폭탄 출현!';
+        startItemTimer(10);
+      } else if (picked === 'BLINK') {
+        activeItemType = 'BLINK';
+        itemStatusText.innerText = '👁️ 8초간 불빛 점멸!';
+        startItemTimer(8);
+
+        blinkInterval = setInterval(() => {
+          boardEl.querySelectorAll('.cell.active').forEach(c => c.classList.toggle('blink-hide'));
+        }, 400);
+      } else if (picked === 'FREEZE') {
+        activeItemType = 'FREEZE';
+        itemStatusText.innerText = '🧊 5초간 타이머 동결!';
+        document.body.classList.add('freeze-bg');
+        mainGaugeEl.classList.add('frozen');
+        startItemTimer(5);
+      }
+      return false;
+    }
+
+    function startItemTimer(seconds, onComplete) {
+      itemGaugeEl.style.width = '100%';
+      if (itemTimerInterval) clearInterval(itemTimerInterval);
+
+      const totalMs = seconds * 1000;
+      let elapsed = 0;
+
+      itemTimerInterval = setInterval(() => {
+        if (isPaused) return;
+        elapsed += 100;
+        const leftRatio = Math.max(0, (totalMs - elapsed) / totalMs);
+        itemGaugeEl.style.width = (leftRatio * 100) + '%';
+
+        if (elapsed >= totalMs) {
+          clearInterval(itemTimerInterval);
+          if (onComplete) onComplete();
+          clearAllItemEffects();
+        }
+      }, 100);
+    }
+
+    function clearAllItemEffects() {
+      activeItemType = null; scoreMultiplier = 1; comboInMultiplier = 0;
+      document.body.classList.remove('hardcore-bg', 'freeze-bg');
+      mainGaugeEl.classList.remove('frozen');
+      itemStatusText.innerText = ''; itemGaugeEl.style.width = '0%';
+
+      if (itemTimerInterval) clearInterval(itemTimerInterval);
+      if (blinkInterval) clearInterval(blinkInterval);
+
+      if (boardDimension !== 3) {
+        boardDimension = 3; rebuildBoard();
+      }
+    }
+
+    function updateHUD() {
+      scoreEl.innerText = score;
+      multiplierEl.innerText = scoreMultiplier > 1 ? `(x${scoreMultiplier})` : '';
+      comboCountEl.innerText = combo;
+      shieldCountEl.innerText = shieldCount;
+      shieldComboEl.innerText = shieldCombo;
+    }
+
+    /* ================= 사망, 부활 및 오버레이 ================= */
+
+    function gameOver(reason) {
+      isPlaying = false;
+      clearInterval(gameLoop);
+      if (bombAnimLoop) clearInterval(bombAnimLoop);
+      clearAllItemEffects();
+
+      if (initialDeathScore === null) {
+        initialDeathScore = score;
+      }
+
+      /* 💡 하드 모드 사망 시 1:1 점수 비율 코인 환산 버그 보완 */
+      const coinRatio = (selectedMode === 'HARD') ? 1.0 : 0.5;
+      const earnedCoins = Math.floor(initialDeathScore * coinRatio);
+      addCoins(earnedCoins);
+
+      const prevBest = parseInt(localStorage.getItem(`lt_best_${selectedMode}`) || '0');
+      let isNewRecord = false;
+
+      if (score > prevBest) {
+        localStorage.setItem(`lt_best_${selectedMode}`, score);
+        isNewRecord = true;
+      }
+
+      const reviveBtn = document.getElementById('btn-revive');
+      const reviveNote = document.getElementById('revive-coin-note');
+
+      if (reviveCount < 3) {
+        const cost = REVIVE_COSTS[reviveCount];
+        document.getElementById('revive-cost').innerText = cost;
+        reviveBtn.classList.remove('hidden');
+      } else {
+        reviveBtn.classList.add('hidden');
+      }
+
+      reviveNote.classList.toggle('hidden', reviveCount === 0);
+
+      document.getElementById('death-reason').innerText = reason;
+      document.getElementById('final-score').innerText = score;
+      document.getElementById('earned-coins').innerText = earnedCoins;
+      document.getElementById('new-record-text').classList.toggle('hidden', !isNewRecord);
+      document.getElementById('gameover-overlay').classList.remove('hidden');
+    }
+
+    function tryRevive() {
+      if (reviveCount >= 3) return;
+      const cost = REVIVE_COSTS[reviveCount];
+
+      if (userCoins >= cost) {
+        userCoins -= cost;
+        localStorage.setItem('lt_coins', userCoins);
+        updateMainUI();
+
+        reviveCount++;
+        currentTime = 100;
+
+        document.getElementById('gameover-overlay').classList.add('hidden');
+        
+        runCountdown(() => {
+          isPlaying = true;
+          isPaused = false;
+          isLocked = false;
+
+          if (gameLoop) clearInterval(gameLoop);
+          gameLoop = setInterval(updateGameLoop, 50);
+
+          if (bombAnimLoop) clearInterval(bombAnimLoop);
+          bombAnimLoop = setInterval(updateBombTimers, 40);
+        });
+
+      } else {
+        alert('코인이 부족합니다!');
+      }
+    }
+
+    function togglePause() {
+      if (!isPlaying || isCountingDown) return;
+      isPaused = !isPaused;
+      document.getElementById('pause-overlay').classList.toggle('hidden', !isPaused);
+    }
+
+    function confirmExitToMain() {
+      if (confirm('정말 메인 메뉴로 나가시겠습니까? 진행 중인 판이 종료됩니다.')) {
+        exitToMain();
+      }
+    }
+
+    function exitToMain() {
+      isPlaying = false; isPaused = false;
+      clearInterval(gameLoop);
+      if (bombAnimLoop) clearInterval(bombAnimLoop);
+      clearAllItemEffects();
+      document.getElementById('pause-overlay').classList.add('hidden');
+      document.getElementById('gameover-overlay').classList.add('hidden');
+      document.getElementById('start-overlay').classList.remove('hidden');
+    }
+
+    function closeOverlay(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    /* ================= 🎰 뽑기 & 10연 뽑기 로직 ================= */
+
+    function openGacha() {
+      document.getElementById('gacha-coin').innerText = userCoins;
+      document.getElementById('gacha-piece').innerText = userPieces;
+      document.getElementById('gacha-result').classList.add('hidden');
+      document.getElementById('gacha-overlay').classList.remove('hidden');
+    }
+
+    function drawGacha(count) {
+      const cost = count * 30;
+      if (userCoins < cost) {
+        alert('코인이 부족합니다!');
+        return;
+      }
+
+      userCoins -= cost;
+      localStorage.setItem('lt_coins', userCoins);
+      updateMainUI();
+
+      executeGachaPull(count);
+    }
+
+    function drawGachaWithPieces() {
+      if (userPieces < 10) {
+        alert('꽝 조각이 10개 필요합니다!');
+        return;
+      }
+
+      userPieces -= 10;
+      localStorage.setItem('lt_pieces', userPieces);
+      updateMainUI();
+
+      executeGachaPull(1);
+    }
+
+    function executeGachaPull(count) {
+      const results = [];
+      const GACHA_ITEMS = [
+        { type: 'SKIN', id: 'gold_master', name: '✨ 한정 스킨 [골드 마스터]', rate: 0.05 },
+        { type: 'SKIN', id: 'cyberpunk', name: '🎨 [사이버펑크] 스킨', rate: 0.1 },
+        { type: 'SKIN', id: 'retro', name: '🎨 [레트로] 스킨', rate: 0.1 },
+        { type: 'COIN', name: '🪙 100 코인 잭팟', rate: 0.15, amount: 100 },
+        { type: 'PIECE', name: '🧩 꽝 조각 3개 세트', rate: 0.2, amount: 3 }
+      ];
+
+      for (let i = 0; i < count; i++) {
+        const rand = Math.random();
+        let cumulative = 0;
+        let wonItem = null;
+
+        for (const item of GACHA_ITEMS) {
+          cumulative += item.rate;
+          if (rand < cumulative) {
+            wonItem = item;
+            break;
+          }
+        }
+
+        if (wonItem) {
+          if (wonItem.type === 'SKIN') {
+            if (!unlockedSkins.includes(wonItem.id)) {
+              unlockedSkins.push(wonItem.id);
+              localStorage.setItem('lt_skins', JSON.stringify(unlockedSkins));
+              results.push(`🎉 획득! ${wonItem.name}`);
+            } else {
+              addCoins(50);
+              results.push(`🎉 중복 획득! ${wonItem.name} ➔ (50코인 환급)`);
+            }
+          } else if (wonItem.type === 'COIN') {
+            addCoins(wonItem.amount);
+            results.push(`🎉 당첨! ${wonItem.name}`);
+          } else if (wonItem.type === 'PIECE') {
+            addPieces(wonItem.amount);
+            results.push(`🎁 당첨! ${wonItem.name}`);
+          }
+        } else {
+          addPieces(1);
+          results.push(`💩 꽝! (🧩 조각 1개 획득)`);
+        }
+      }
+
+      openGacha();
+      const resBox = document.getElementById('gacha-result');
+      resBox.innerHTML = results.map(r => `<div>${r}</div>`).join('');
+      resBox.classList.remove('hidden');
+    }
+
+    function openScoreboard() {
+      document.getElementById('sb-normal').innerText = (localStorage.getItem('lt_best_NORMAL') || 0) + '점';
+      document.getElementById('sb-casual').innerText = (localStorage.getItem('lt_best_CASUAL') || 0) + '점';
+      document.getElementById('sb-hard').innerText = (localStorage.getItem('lt_best_HARD') || 0) + '점';
+      document.getElementById('sb-practice').innerText = (localStorage.getItem('lt_best_PRACTICE') || 0) + '점';
+      document.getElementById('scoreboard-overlay').classList.remove('hidden');
+    }
+
+    function openDaily() {
+      const listEl = document.getElementById('daily-list');
+      listEl.innerHTML = '';
+
+      dailyData.missions.forEach(m => {
+        const item = document.createElement('div');
+        item.style.cssText = 'background:#2a2a2a; padding:10px; border-radius:8px; margin-bottom:8px; font-size:12px; text-align:left; display:flex; justify-content:space-between; align-items:center;';
+        item.innerHTML = `
+          <div>
+            <div style="font-weight:bold; color:#fff;">${m.desc}</div>
+            <div style="color:#aaa;">진행도: ${m.progress}/${m.target} (보상: ${m.reward}🪙)</div>
+          </div>
+          <div>${m.done ? '✅ 완료' : '⏳ 진행중'}</div>
+        `;
+        listEl.appendChild(item);
+      });
+
+      document.getElementById('daily-overlay').classList.remove('hidden');
+    }
+
+    function openShop() {
+      document.getElementById('shop-coin-count').innerText = userCoins;
+      const gridEl = document.getElementById('shop-grid');
+      gridEl.innerHTML = '';
+
+      SKINS.forEach(s => {
+        const isUnlocked = unlockedSkins.includes(s.id);
+        const isActive = currentSkin === s.id;
+        const card = document.createElement('div');
+        card.className = `card-item ${isActive ? 'active-skin' : (isUnlocked ? 'unlocked' : 'locked')}`;
+        card.innerHTML = `
+          <div class="title">${s.name}</div>
+          <div>${isActive ? '착용 중' : (isUnlocked ? '보유 중' : (s.gachaOnly ? '🎰 뽑기 전용' : s.price + '🪙'))}</div>
+        `;
+        card.onclick = () => {
+          if (isUnlocked) {
+            applySkin(s.id); openShop();
+          } else if (!s.gachaOnly && userCoins >= s.price) {
+            userCoins -= s.price;
+            localStorage.setItem('lt_coins', userCoins);
+            unlockedSkins.push(s.id);
+            localStorage.setItem('lt_skins', JSON.stringify(unlockedSkins));
+            applySkin(s.id); openShop();
+          }
+        };
+        gridEl.appendChild(card);
+      });
+
+      document.getElementById('shop-overlay').classList.remove('hidden');
+    }
+
+    function openAchievements() {
+      const listEl = document.getElementById('achieve-list');
+      listEl.innerHTML = '';
+
+      ACHIEVEMENTS.forEach(ach => {
+        const isUnlocked = unlockedAchieves.includes(ach.id);
+        const card = document.createElement('div');
+        card.className = `card-item ${isUnlocked ? 'unlocked' : 'locked'}`;
+        card.innerHTML = `
+          <div class="title">${isUnlocked ? '🏆' : '🔒'} ${ach.title}</div>
+          <div>${ach.desc}</div>
+        `;
+        listEl.appendChild(card);
+      });
+
+      document.getElementById('achieve-overlay').classList.remove('hidden');
+    }
+
+    /* ================= 이벤트 리스너 ================= */
+
+    boardEl.addEventListener('click', (e) => {
+      const cell = e.target.closest('.cell');
+      if (!cell) return;
+      const index = parseInt(cell.getAttribute('data-index'));
+      handleCellClick(index, e.clientX, e.clientY);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        const overlays = ['achieve-overlay', 'scoreboard-overlay', 'daily-overlay', 'shop-overlay', 'gacha-overlay'];
+        const isOverlayOpen = overlays.some(id => !document.getElementById(id).classList.contains('hidden'));
+        if (!isPlaying && !isOverlayOpen && !isCountingDown) {
+          startWithCountdown(); return;
+        }
+      }
+
+      if (e.code === 'KeyP' || e.code === 'Escape') {
+        togglePause(); return;
+      }
+
+      if (!isPlaying || isPaused || isCountingDown) return;
+
+      const map = KEY_MAPS[boardDimension];
+      if (map && map[e.key] !== undefined) {
+        e.preventDefault();
+        const targetIdx = map[e.key];
+        const targetCell = boardEl.children[targetIdx];
+        const rect = targetCell.getBoundingClientRect();
+        handleCellClick(targetIdx, rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+    });
+
+    // 초기 실행 설정
+    applySkin(currentSkin);
+    updateMainUI();
+    updateBestScoreUI();
+  </script>
+</body>
+</html>
