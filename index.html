@@ -25,7 +25,6 @@
       --font-family: 'Pretendard', -apple-system, system-ui, sans-serif;
     }
 
-    /* 테마 정의 */
     body.theme-cyberpunk {
       --bg-color: #0f051d; --card-bg: #1a0b2e; --accent-green: #00ffcc;
       --accent-yellow: #ff007f; --cell-bg: #2a1b40; --active-bg: #ff007f;
@@ -51,7 +50,6 @@
       --accent-yellow: #feb47b; --cell-bg: #472852; --active-bg: #ff7e5f;
       --active-shadow: rgba(255, 126, 95, 0.8);
     }
-    /* ✨ 한정판 골드 마스터 전용 차별화 테마 */
     body.theme-gold-master {
       --bg-color: #181400; --card-bg: #2b2400; --accent-green: #ffd700;
       --accent-yellow: #fff2a3; --cell-bg: #423800; --active-bg: #ffd700;
@@ -401,17 +399,18 @@
     <div id="death-reason" class="death-reason-box">시간 초과!</div>
     <p>
       최종 점수: <span id="final-score" style="color:#fff; font-weight:bold; font-size:20px;" class="num-tabular">0</span>점<br>
-      획득 코인: +<span id="earned-coins" style="color:#fbc531; font-weight:bold;">0</span>🪙<br>
-      <small id="revive-coin-note" style="color:#fbc531; display:block; margin-top:4px; font-size:11px;">
-        * 부활 후 추가 점수는 코인으로 환산되지 않습니다.
-      </small>
+      획득 예정 코인: +<span id="earned-coins" style="color:#fbc531; font-weight:bold;">0</span>🪙<br>
       <span id="new-record-text" style="color:var(--accent-yellow); font-weight:bold; display:block; margin-top:6px;" class="hidden">🎉 최고 기록 경신! 🎉</span>
     </p>
+
+    <div style="font-size:11px; color:#ff9f43; background:rgba(255, 159, 67, 0.1); border:1px solid #ff9f43; padding:6px 12px; border-radius:8px; margin-bottom:12px;">
+      ⚠️ <b>알림:</b> 부활 선택 시 이번 판의 코인 보상은 정산되지 않습니다.
+    </div>
     
     <div class="btn-group-row">
-      <button class="btn-sub" onclick="confirmExitToMain()">메뉴로</button>
+      <button class="btn-sub" onclick="finishGameAndCollectCoins('menu')">메뉴로</button>
       <button id="btn-revive" class="btn-revive" onclick="tryRevive()">❤️ 부활 (<span id="revive-cost">50</span>🪙)</button>
-      <button class="btn-main" onclick="startWithCountdown()">다시하기</button>
+      <button class="btn-main" onclick="finishGameAndCollectCoins('restart')">다시하기</button>
     </div>
   </div>
 
@@ -649,6 +648,7 @@
     let reviveCount = 0;
     const REVIVE_COSTS = [50, 100, 200];
     let initialDeathScore = null;
+    let pendingEarnedCoins = 0;
 
     let boardDimension = 3;
     let activeIndices = new Map();
@@ -737,7 +737,7 @@
 
     function initGameState() {
       score = 0; combo = 0; shieldCount = 0; shieldCombo = 0; bombsDefused = 0;
-      reviveCount = 0; initialDeathScore = null;
+      reviveCount = 0; initialDeathScore = null; pendingEarnedCoins = 0;
       currentTime = 100; boardDimension = 3;
       isPlaying = false; isPaused = false; isLocked = false;
 
@@ -754,7 +754,6 @@
       bestScoreEl.innerText = best;
     }
 
-    /* 보드 재생성 시 불빛 완전 초기화 적용 */
     function rebuildBoard() {
       boardEl.className = `grid-board grid-${boardDimension}x${boardDimension}`;
       boardEl.innerHTML = '';
@@ -782,7 +781,6 @@
       spawnInitialLights();
     }
 
-    /* 판 크기 N*N에 대해 100% 비우고 정확히 N개만 생성 */
     function spawnInitialLights() {
       activeIndices.clear();
       const targetCount = boardDimension;
@@ -840,11 +838,11 @@
       if (activeItemType === 'FREEZE') return;
 
       if (selectedMode !== 'PRACTICE') {
-        let drainSpeed = 0.45;
-        if (selectedMode === 'CASUAL') drainSpeed = 0.3;
-        if (selectedMode === 'HARD') drainSpeed = 0.85;
+        let drainSpeed = 0.35;
+        if (selectedMode === 'CASUAL') drainSpeed = 0.25;
+        if (selectedMode === 'HARD') drainSpeed = 0.55;
 
-        drainSpeed += (score * 0.012);
+        drainSpeed += (score * 0.009);
 
         currentTime -= drainSpeed;
         if (currentTime <= 0) {
@@ -901,7 +899,7 @@
           }
         }
 
-        const addTime = (selectedMode === 'HARD') ? 8 : 16;
+        const addTime = (selectedMode === 'HARD') ? 12 : 16;
         currentTime = Math.min(100, currentTime + addTime);
 
         const canSpawnItem = (selectedMode === 'NORMAL' || selectedMode === 'HARD' || 
@@ -912,12 +910,17 @@
         activeIndices.delete(index);
 
         if (isItemClick) {
-          const isSizeChange = triggerRandomItem();
-          if (!isSizeChange) {
-            spawnNextLight(index, false); renderBoard();
+          const isRebuilt = triggerRandomItem();
+          // 🔥 맵이 새로 지어졌거나 3x3으로 복귀한 경우 불빛을 추가로 켜지 않고 즉시 반환
+          if (isRebuilt) {
+            updateHUD();
+            return;
           }
+          spawnNextLight(index, false);
+          renderBoard();
         } else {
-          spawnNextLight(index, isItemScore && canSpawnItem); renderBoard();
+          spawnNextLight(index, isItemScore && canSpawnItem);
+          renderBoard();
         }
 
         if (score >= 25) unlockAchieve('first_25');
@@ -985,7 +988,7 @@
     /* ================= 아이템 시스템 ================= */
 
     function triggerRandomItem() {
-      clearAllItemEffects();
+      const wasRebuiltInClear = clearAllItemEffects();
 
       const items = ['SIZE_VAR', 'HARDCORE', 'MULTIPLIER', 'BOMB_RAIN', 'BLINK', 'FREEZE'];
       const picked = items[Math.floor(Math.random() * items.length)];
@@ -996,7 +999,7 @@
         boardDimension = isExpand ? 4 : 2;
         itemStatusText.innerText = isExpand ? '📐 맵 확장 (4x4)!' : '📐 맵 축소 (2x2)!';
         rebuildBoard();
-        return true;
+        return true; // 맵 재구성됨
       } else if (picked === 'HARDCORE') {
         activeItemType = 'HARDCORE';
         itemStatusText.innerText = '⚠️ 10초 하드코어! (실수시 사망)';
@@ -1025,7 +1028,9 @@
         mainGaugeEl.classList.add('frozen');
         startItemTimer(5);
       }
-      return false;
+
+      // 만약 2x2/4x4에서 일반 3x3으로 복귀한 경우도 보드가 재구성된 상태임
+      return wasRebuiltInClear;
     }
 
     function startItemTimer(seconds, onComplete) {
@@ -1049,6 +1054,7 @@
       }, 100);
     }
 
+    /* 기존 효과 정리 및 보드 복귀 처리 */
     function clearAllItemEffects() {
       activeItemType = null; scoreMultiplier = 1; comboInMultiplier = 0;
       document.body.classList.remove('hardcore-bg', 'freeze-bg');
@@ -1058,9 +1064,13 @@
       if (itemTimerInterval) clearInterval(itemTimerInterval);
       if (blinkInterval) clearInterval(blinkInterval);
 
+      let wasRebuilt = false;
       if (boardDimension !== 3) {
-        boardDimension = 3; rebuildBoard();
+        boardDimension = 3;
+        rebuildBoard();
+        wasRebuilt = true;
       }
+      return wasRebuilt;
     }
 
     function updateHUD() {
@@ -1071,7 +1081,7 @@
       shieldComboEl.innerText = shieldCombo;
     }
 
-    /* ================= 사망, 부활 및 오버레이 ================= */
+    /* ================= 사망, 부활 및 코인 정산 ================= */
 
     function gameOver(reason) {
       isPlaying = false;
@@ -1081,12 +1091,9 @@
 
       if (initialDeathScore === null) {
         initialDeathScore = score;
+        const coinRatio = (selectedMode === 'HARD') ? 1.0 : 0.5;
+        pendingEarnedCoins = Math.floor(initialDeathScore * coinRatio);
       }
-
-      /* 💡 하드 모드 사망 시 1:1 점수 비율 코인 환산 버그 보완 */
-      const coinRatio = (selectedMode === 'HARD') ? 1.0 : 0.5;
-      const earnedCoins = Math.floor(initialDeathScore * coinRatio);
-      addCoins(earnedCoins);
 
       const prevBest = parseInt(localStorage.getItem(`lt_best_${selectedMode}`) || '0');
       let isNewRecord = false;
@@ -1097,7 +1104,6 @@
       }
 
       const reviveBtn = document.getElementById('btn-revive');
-      const reviveNote = document.getElementById('revive-coin-note');
 
       if (reviveCount < 3) {
         const cost = REVIVE_COSTS[reviveCount];
@@ -1107,23 +1113,45 @@
         reviveBtn.classList.add('hidden');
       }
 
-      reviveNote.classList.toggle('hidden', reviveCount === 0);
-
       document.getElementById('death-reason').innerText = reason;
       document.getElementById('final-score').innerText = score;
-      document.getElementById('earned-coins').innerText = earnedCoins;
+      document.getElementById('earned-coins').innerText = pendingEarnedCoins;
       document.getElementById('new-record-text').classList.toggle('hidden', !isNewRecord);
       document.getElementById('gameover-overlay').classList.remove('hidden');
+    }
+
+    function finishGameAndCollectCoins(action) {
+      if (pendingEarnedCoins > 0) {
+        addCoins(pendingEarnedCoins);
+        pendingEarnedCoins = 0;
+      }
+      
+      document.getElementById('gameover-overlay').classList.add('hidden');
+
+      if (action === 'menu') {
+        document.getElementById('start-overlay').classList.remove('hidden');
+      } else if (action === 'restart') {
+        startWithCountdown();
+      }
     }
 
     function tryRevive() {
       if (reviveCount >= 3) return;
       const cost = REVIVE_COSTS[reviveCount];
 
-      if (userCoins >= cost) {
+      if (userCoins < cost) {
+        alert('코인이 부족합니다!');
+        return;
+      }
+
+      const confirmRevive = confirm(`정말 ${cost}코인을 소비하여 부활하시겠습니까?\n(부활 시 이번 판의 코인 보상은 정산되지 않습니다)`);
+      
+      if (confirmRevive) {
         userCoins -= cost;
         localStorage.setItem('lt_coins', userCoins);
         updateMainUI();
+
+        pendingEarnedCoins = 0; // 부활 시 해당 판 코인 보상 무효화
 
         reviveCount++;
         currentTime = 100;
@@ -1141,9 +1169,6 @@
           if (bombAnimLoop) clearInterval(bombAnimLoop);
           bombAnimLoop = setInterval(updateBombTimers, 40);
         });
-
-      } else {
-        alert('코인이 부족합니다!');
       }
     }
 
@@ -1173,7 +1198,7 @@
       document.getElementById(id).classList.add('hidden');
     }
 
-    /* ================= 🎰 뽑기 & 10연 뽑기 로직 ================= */
+    /* ================= 🎰 뽑기 & 10연 뽑기 ================= */
 
     function openGacha() {
       document.getElementById('gacha-coin').innerText = userCoins;
@@ -1372,7 +1397,7 @@
       }
     });
 
-    // 초기 실행 설정
+    // 초기 적용
     applySkin(currentSkin);
     updateMainUI();
     updateBestScoreUI();
