@@ -1,6 +1,14 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef1f6">
 <title>연속 통과 확률기</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%}
 /* Layout: 폭 480px 한 장짜리 카드. 확률 → 카운터 → 버튼 → 설정 순. 통계는 팝업. */
 :root{
   --bg:#eef1f6; --panel:#ffffff; --ink:#18202e; --muted:#5d6779; --line:#dbe0e8;
@@ -155,6 +163,8 @@ html.fit .row{grid-template-columns:60px minmax(0,1fr)}
 html.fit .seg button{font-size:12px}
 @media (prefers-reduced-motion:reduce){.big.pop{animation:none}.toggle .track,.toggle .track::after{transition:none}}
 </style>
+</head>
+<body>
 
 <div class="app">
   <header class="top">
@@ -527,3 +537,6 @@ window.addEventListener('resize',()=>{
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fit);
 fit();
 </script>
+
+</body>
+</html>
