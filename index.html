@@ -1,949 +1,488 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>컬러 크래시 - Color Crush</title>
+<title>연속 통과 확률기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-  :root{
-    --c0:#ff2d55; --c0d:#7a0f26;
-    --c1:#0a84ff; --c1d:#053a70;
-    --c2:#2ee66b; --c2d:#0e7a35;
-    --c3:#ffb300; --c3d:#8a5c00;
-    --c4:#b833ff; --c4d:#4c1080;
-    --bg1:#0f0c29; --bg2:#302b63; --bg3:#24243e;
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
-  html,body{
-    margin:0; padding:0; height:100%;
-    background:linear-gradient(160deg,var(--bg1),var(--bg2) 55%,var(--bg3));
-    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
-    overflow:hidden; touch-action:none;
-    color:#fff;
-  }
-  #app{
-    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
-    height:100%; padding:calc(10px + env(safe-area-inset-top,0px)) 12px 12px;
-  }
-  #topbar{
-    width:min(92vw,460px);
-    display:flex; justify-content:space-between; align-items:center;
-    margin-bottom:10px;
-    gap:8px;
-  }
-  .statsGroup{ display:flex; gap:8px; }
-  .iconBtn{
-    width:38px; height:38px; min-width:38px; padding:0;
-    border-radius:12px; background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.15); color:#fff;
-    font-size:17px; display:flex; align-items:center; justify-content:center;
-    cursor:pointer; box-shadow:none;
-  }
-  .iconBtn:active{ transform:scale(0.94); }
-  .stat{
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.15);
-    border-radius:14px;
-    padding:6px 14px;
-    text-align:center;
-    min-width:84px;
-    backdrop-filter:blur(6px);
-  }
-  .stat .label{font-size:10px; opacity:0.65; letter-spacing:1px;}
-  .stat .val{font-size:18px; font-weight:700;}
-  h1{
-    font-size:15px; margin:0 0 8px; letter-spacing:2px; opacity:0.85; font-weight:600;
-    background:linear-gradient(90deg,#ff9ee0,#7ee8fa,#a1ffce);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-  }
-  #boardOuter{
-    width:min(92vw,440px);
-    aspect-ratio:1/1;
-    background:rgba(0,0,0,0.35);
-    border-radius:16px;
-    padding:6px;
-    border:1px solid rgba(255,255,255,0.12);
-    box-shadow:0 10px 40px rgba(0,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.4);
-    position:relative;
-    overflow:hidden;
-  }
-  #board{
-    position:relative;
-    width:100%;
-    height:100%;
-  }
-  svg#lines{
-    position:absolute; inset:0; width:100%; height:100%;
-    pointer-events:none; z-index:8;
-  }
-  svg#lines line{
-    stroke-linecap:round;
-    filter:drop-shadow(0 0 4px currentColor);
-    transition:stroke-dashoffset .22s ease;
-  }
+/* Layout: 폭 480px 한 장짜리 카드. 확률 → 카운터 → 버튼 → 설정 순. 통계는 팝업. */
+:root{
+  --bg:#eef1f6; --panel:#ffffff; --ink:#18202e; --muted:#5d6779; --line:#dbe0e8;
+  --accent:#2f54d6; --accent-ink:#ffffff; --good:#13804b; --bad:#c43a3a; --soft:#eef1f8; --scrim:rgba(15,19,27,.45);
+  --f-display:"Black Han Sans","IBM Plex Sans KR",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f131b; --panel:#171d29; --ink:#e7ebf3; --muted:#9aa4b8; --line:#283041;
+  --accent:#7d98ff; --accent-ink:#0f131b; --good:#4cc98a; --bad:#ff7b7b; --soft:#1e2534; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f131b; --panel:#171d29; --ink:#e7ebf3; --muted:#9aa4b8; --line:#283041;
+  --accent:#7d98ff; --accent-ink:#0f131b; --good:#4cc98a; --bad:#ff7b7b; --soft:#1e2534; --scrim:rgba(0,0,0,.6); color-scheme:dark}
 
-  .tile-slot{
-    position:absolute;
-    width:12.5%; height:12.5%;
-    cursor:pointer;
-    transition:top .32s cubic-bezier(.35,0,.25,1), left .28s ease, opacity .18s ease, transform .18s ease;
-    z-index:2;
-  }
-  .tile-slot.no-anim{transition:none !important;}
-  .tile-face{
-    position:absolute; inset:5%;
-  }
-  .tile-face.c0{background:radial-gradient(circle at 35% 30%,#ff8fa3,var(--c0) 55%,var(--c0d)); clip-path:circle(50% at 50% 50%); filter:drop-shadow(0 0 7px rgba(255,45,85,.75)) drop-shadow(0 2px 2px rgba(0,0,0,.35));}
-  .tile-face.c1{background:radial-gradient(circle at 35% 30%,#8fc9ff,var(--c1) 55%,var(--c1d)); clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%); filter:drop-shadow(0 0 7px rgba(10,132,255,.75)) drop-shadow(0 2px 2px rgba(0,0,0,.35));}
-  .tile-face.c2{background:radial-gradient(circle at 35% 22%,#a4f7bf,var(--c2) 55%,var(--c2d)); clip-path:polygon(50% 4%,95% 92%,5% 92%); filter:drop-shadow(0 0 7px rgba(46,230,107,.75)) drop-shadow(0 2px 2px rgba(0,0,0,.35));}
-  .tile-face.c3{background:radial-gradient(circle at 35% 30%,#ffe08f,var(--c3) 55%,var(--c3d)); clip-path:polygon(50% 0%,63% 36%,100% 36%,70% 58%,82% 95%,50% 74%,18% 95%,30% 58%,0% 36%,37% 36%); filter:drop-shadow(0 0 7px rgba(255,179,0,.75)) drop-shadow(0 2px 2px rgba(0,0,0,.35));}
-  .tile-face.c4{background:radial-gradient(circle at 35% 30%,#e2a8ff,var(--c4) 55%,var(--c4d)); clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0% 50%); filter:drop-shadow(0 0 7px rgba(184,51,255,.75)) drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45;margin:0;padding-block:16px 24px;padding-inline:16px;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;touch-action:manipulation;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-  .tile-slot.selected .tile-face{ transform:scale(1.12); filter:brightness(1.25); }
-  .tile-slot.popping{ z-index:6; }
-  .tile-slot.popping .tile-face{ animation:popAnim .26s ease forwards; }
-  @keyframes popAnim{
-    0%{ transform:scale(1); opacity:1; }
-    40%{ transform:scale(1.35); opacity:1; }
-    100%{ transform:scale(0.1) rotate(30deg); opacity:0; }
-  }
-  .tile-slot.shake .tile-face{ animation:shake .28s; }
-  @keyframes shake{
-    0%,100%{transform:translateX(0);}
-    25%{transform:translateX(-5px) rotate(-4deg);}
-    75%{transform:translateX(5px) rotate(4deg);}
-  }
-  .tile-slot.shuffle-flash .tile-face{ animation:shuffleFlash .22s ease; }
-  @keyframes shuffleFlash{
-    0%{ transform:scale(0.75); opacity:0.4; }
-    100%{ transform:scale(1); opacity:1; }
-  }
+.app{max-width:480px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:12px}
 
-  .burst{
-    position:absolute; width:12.5%; height:12.5%;
-    z-index:7; pointer-events:none;
-  }
-  .burst::before, .burst::after{
-    content:''; position:absolute; inset:8%;
-    border-radius:50%;
-    background:radial-gradient(circle, #fff 0%, currentColor 40%, transparent 72%);
-    animation:burstAnim .42s ease-out forwards;
-  }
-  .burst::after{ animation-delay:.05s; opacity:.7; }
-  @keyframes burstAnim{
-    0%{ transform:scale(0.2); opacity:1; }
-    100%{ transform:scale(2.1); opacity:0; }
-  }
+/* 헤더 */
+.top{display:flex;align-items:center;gap:6px}
+.top h1{font-family:var(--f-display);font-weight:400;font-size:20px;margin:0 auto 0 0;line-height:1}
+.ib{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--ink)}
+.ib svg{width:18px;height:18px}
+.ib[aria-pressed="false"]{color:var(--muted)}
 
-  .float{
-    position:absolute; width:12.5%; height:12.5%;
-    display:flex; align-items:center; justify-content:center;
-    font-weight:800; font-size:13px; color:#fff;
-    text-shadow:0 0 6px rgba(0,0,0,.7);
-    pointer-events:none; z-index:9;
-    animation:floatUp .7s ease-out forwards;
-  }
-  @keyframes floatUp{
-    0%{opacity:1; transform:translateY(0);}
-    100%{opacity:0; transform:translateY(-30px);}
-  }
+/* 확률 요약 */
+.odds{display:grid;grid-template-columns:1fr 1fr;background:var(--soft);border-radius:12px}
+.odd{padding:8px 12px;min-width:0;display:grid;gap:1px}
+.odd + .odd{border-left:1px solid var(--line)}
+.odd-l{font-size:11px;font-weight:700;color:var(--muted)}
+.odd-v{font:600 20px/1.2 var(--f-mono);color:var(--accent);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.odd-s{font-size:11px;color:var(--muted)}
+.odd-s b{font:500 11px var(--f-mono);color:var(--ink)}
 
-  #combo{
-    position:absolute; left:50%; top:10%;
-    transform:translate(-50%,-50%) scale(0.6);
-    font-size:22px; font-weight:900; letter-spacing:.5px;
-    color:#fff;
-    -webkit-text-stroke:2px rgba(0,0,0,0.7);
-    paint-order:stroke fill;
-    text-shadow:
-      -1.5px -1.5px 0 rgba(0,0,0,.85), 1.5px -1.5px 0 rgba(0,0,0,.85),
-      -1.5px 1.5px 0 rgba(0,0,0,.85), 1.5px 1.5px 0 rgba(0,0,0,.85),
-      0 0 14px currentColor, 0 2px 3px rgba(0,0,0,.6);
-    opacity:0; pointer-events:none; z-index:16;
-    transition:opacity .15s ease;
-    white-space:nowrap;
-  }
-  #combo.show{ opacity:1; }
-  #combo.pulse{ animation:comboPulse .16s ease; }
-  @keyframes comboPulse{
-    0%{ transform:translate(-50%,-50%) scale(1.4); }
-    100%{ transform:translate(-50%,-50%) scale(1); }
-  }
+/* 시도 횟수 */
+.att{display:flex;align-items:baseline;justify-content:space-between;gap:4px 10px;flex-wrap:wrap;padding:0 2px}
+.att-v{font-size:13px;color:var(--muted);white-space:nowrap}
+.att-v b{font:600 22px var(--f-mono);color:var(--ink);margin-right:2px;font-variant-numeric:tabular-nums}
+.att-v.won b{color:var(--good)}
+.att-s{font-size:12px;color:var(--muted);min-width:0;overflow-wrap:anywhere}
+.att-s b{font:600 12px var(--f-mono)}
+.att-s b.under,.cmptag.under{color:var(--good)}
+.att-s b.over,.cmptag.over{color:var(--bad)}
+.att-s b.eq,.cmptag.eq{color:var(--accent)}
+.cmptag{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,currentColor 13%,transparent);white-space:nowrap}
+.att-s{margin-left:auto}
+.tally{display:inline-flex;align-items:baseline;gap:5px}
+.tally b{font-size:15px}
+.tally i{font-style:normal;color:var(--line)}
+.tally .tl{font-size:11px}
 
-  #toast{
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) scale(.9);
-    background:rgba(0,0,0,0.65); border:1px solid rgba(255,255,255,0.2);
-    padding:10px 18px; border-radius:12px; font-size:13px; font-weight:600;
-    opacity:0; pointer-events:none; z-index:20; transition:opacity .25s ease, transform .25s ease;
-    white-space:nowrap;
-  }
-  #toast.show{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+/* 카운터 */
+.counter{display:flex;align-items:center;gap:10px}
+.big{font-family:var(--f-display);font-size:64px;line-height:1;font-variant-numeric:tabular-nums;min-width:1ch;transition:color .2s}
+.big.pop{animation:pop .15s ease-out}
+@keyframes pop{from{transform:translateY(-4px);opacity:.55}to{transform:none;opacity:1}}
+.cmeta{display:grid;gap:4px;min-width:0;flex:1}
+.cline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.chip.good{background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)}
+.chip.bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+.chip.live{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
+.how{font-size:12px;color:var(--muted)}
+.roll{font:400 12px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.trail{display:flex;flex-wrap:wrap;gap:3px;height:8px;overflow:hidden}
+.trail i{width:8px;height:8px;border-radius:2px;background:var(--good)}
+.trail i.x{background:var(--bad)}
 
-  #hint{font-size:11px; opacity:.5; margin-top:10px; text-align:center;}
+/* 버튼 */
+.actions{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.btn{height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font-size:15px;font-weight:700}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.sm{height:36px;font-size:13px;font-weight:500}
+.btn:disabled{opacity:.38;cursor:not-allowed}
 
-  .overlay{
-    position:fixed; inset:0; background:rgba(5,3,15,0.9);
-    display:none; align-items:center; justify-content:center; flex-direction:column;
-    z-index:50; text-align:center; padding:20px;
-  }
-  .overlay.show{display:flex;}
-  .overlay h2{font-size:24px; margin:0 0 4px; background:linear-gradient(90deg,#7ee8fa,#a1ffce); -webkit-background-clip:text; background-clip:text; color:transparent;}
-  .overlay p{margin:4px 0 6px; opacity:.85; font-size:14px;}
-  #bestNote{ font-size:12px; opacity:.65; margin-bottom:16px; }
+/* 설정 */
+.set{display:grid;gap:10px;padding-top:12px;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:72px minmax(0,1fr);align-items:center;gap:10px}
+.lbl{font-size:12px;font-weight:700;color:var(--muted)}
+.input{font:500 16px var(--f-mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:0 10px;height:36px;width:100%;min-width:0}
+.input:focus-visible{outline-offset:0}
+.suffix{position:relative}
+.suffix .input{padding-right:28px}
+.suffix span{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);font:13px var(--f-mono)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px}
+.seg button{height:30px;border:0;border-radius:6px;background:transparent;color:var(--ink);font-size:13px;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.seg button:disabled{opacity:.5;cursor:not-allowed}
+.nums{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nums .tilde{color:var(--muted)}
+.stepper{display:inline-grid;grid-template-columns:32px 48px 32px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)}
+.stepper button{border:0;background:transparent;color:var(--ink);font-size:17px;height:34px}
+.stepper button:active{background:var(--soft)}
+.stepper input{border:0;border-radius:0;text-align:center;background:transparent;height:34px;padding:0}
+.unit{font-size:13px;color:var(--muted)}
+.rule{font-size:12px;color:var(--muted)}
+.rule b{color:var(--accent);font-weight:700}
+.err{color:var(--bad);font-size:12px}
+.speed{display:flex;align-items:center;gap:10px;min-width:0}
+.speed input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:24px;margin:0}
+.speed output{font:12px var(--f-mono);color:var(--muted);width:48px;text-align:right}
+.toggle{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:500;white-space:nowrap}
+.toggle input{position:absolute;opacity:0;width:1px;height:1px}
+.toggle .track{width:32px;height:18px;border-radius:999px;background:var(--line);position:relative;transition:background .15s;flex:none}
+.toggle .track::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--panel);transition:transform .15s}
+.toggle input:checked + .track{background:var(--accent)}
+.toggle input:checked + .track::after{transform:translateX(14px)}
+.toggle input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
 
-  /* the mode-select screen is a real menu, not a dim overlay: solid themed
-     background of its own, and the game underneath is fully hidden (see
-     body.menu-open below) so it truly feels like a separate screen */
-  #modeOverlay{
-    background:radial-gradient(circle at 50% 15%,#3a3470,var(--bg2) 45%,var(--bg1) 100%);
-  }
-  body.menu-open #app{ display:none; }
-
-  .resumeBtn{
-    width:min(86vw,360px); margin-top:14px;
-    background:linear-gradient(135deg,#7ee8fa,#a1ffce);
-    color:#0f0c29; font-weight:800; font-size:15px;
-    border:none; border-radius:16px; padding:13px 16px;
-    box-shadow:0 4px 18px rgba(126,232,250,0.35);
-    display:none;
-  }
-  .resumeBtn.show{ display:block; }
-  .resumeBtn:active{ transform:scale(0.97); }
-
-  .modeList{
-    display:flex; flex-direction:column; gap:10px;
-    width:min(86vw,360px); margin-top:14px;
-  }
-  .modeBtn{
-    display:flex; flex-direction:column; align-items:flex-start; gap:3px;
-    background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.18);
-    border-radius:14px; padding:13px 16px; color:#fff;
-    cursor:pointer; text-align:left; box-shadow:none;
-  }
-  .modeBtn:active{ transform:scale(0.97); background:rgba(255,255,255,0.13); }
-  .modeTitle{ font-size:15px; font-weight:800; }
-  .modeDesc{ font-size:11.5px; opacity:.7; }
-  .modeBest{ font-size:11px; opacity:.55; margin-top:2px; }
-
-  .overlayBtns{ display:flex; gap:10px; margin-top:6px; }
-  button.secondaryBtn{
-    background:rgba(255,255,255,0.1); color:#fff;
-    border:1px solid rgba(255,255,255,0.3); box-shadow:none;
-  }
-
-  button{
-    background:linear-gradient(135deg,#7ee8fa,#a1ffce);
-    border:none; color:#0f0c29; font-weight:700; font-size:15px;
-    padding:12px 28px; border-radius:30px; cursor:pointer;
-    box-shadow:0 4px 18px rgba(126,232,250,0.35);
-  }
-  button:active{transform:scale(0.96);}
+/* 통계 팝업 */
+.scrim{position:fixed;inset:0;background:var(--scrim);display:grid;place-items:center;padding:16px;z-index:20}
+.modal{width:100%;max-width:400px;max-height:calc(100% - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:14px}
+.mh{display:flex;align-items:center;justify-content:space-between}
+.mh h2{margin:0;font-size:16px}
+dl{margin:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px}
+dt{color:var(--muted)}
+dd{margin:0;text-align:right;font:600 14px var(--f-mono);font-variant-numeric:tabular-nums}
+.hist{font:12px var(--f-mono);display:flex;flex-wrap:wrap;gap:4px;color:var(--muted)}
+.hist span{padding:1px 6px;border-radius:5px;background:var(--soft)}
+.hist .g{color:var(--good)} .hist .b{color:var(--bad)}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cmp,.decgrid{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px 14px;align-items:center}
+.cmp{background:var(--soft);border-radius:12px;padding:12px}
+.cmp .ch,.decgrid .ch{font-size:11px;font-weight:700;color:var(--muted);text-align:right}
+.decgrid .ch{text-align:center}
+.cmp .rh,.decgrid .rh{color:var(--muted)}
+.cmp b{font:600 15px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.cmp b:nth-of-type(odd){color:var(--accent)}
+.decgrid .stepper{grid-template-columns:30px 36px 30px}
+.grp{display:grid;gap:8px}
+.grp + .grp{padding-top:14px;border-top:1px solid var(--line)}
+.note{font-size:12px;color:var(--muted)}
+.mbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hint{font-size:11px;color:var(--muted);text-align:center;margin:0}
+@media (hover:none){.hint{display:none}}
+@media (prefers-reduced-motion:reduce){.big.pop{animation:none}.toggle .track,.toggle .track::after{transition:none}}
 </style>
-</head>
-<body class="menu-open">
-<div id="app">
-  <h1>COLOR CRUSH · 8x8</h1>
-  <div id="topbar">
-    <button id="modeBtn" class="iconBtn" title="모드 선택">☰</button>
-    <div class="statsGroup">
-      <div class="stat"><div class="label">SCORE</div><div class="val" id="score">0</div></div>
-      <div class="stat"><div class="label" id="stat2Label">BEST</div><div class="val" id="stat2Val">0</div></div>
+
+<div class="app">
+  <header class="top">
+    <h1>연속 통과 확률기</h1>
+    <button class="ib" id="statsBtn" type="button" aria-label="통계 열기" title="통계">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    </button>
+    <button class="ib" id="setBtn" type="button" aria-label="설정 열기" title="설정">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+    <button class="ib" id="sound" type="button" aria-pressed="true" aria-label="효과음" title="효과음">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path id="waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path id="mute" d="m16 9 6 6m0-6-6 6" hidden/></svg>
+    </button>
+  </header>
+
+  <div class="odds" aria-live="polite">
+    <div class="odd"><span class="odd-l">성공 확률 (이론)</span><span class="odd-v" id="tP">-</span><span class="odd-s">실제 <b id="rP">-</b></span></div>
+    <div class="odd"><span class="odd-l">평균 시도횟수 (이론)</span><span class="odd-v" id="tN">-</span><span class="odd-s">실제 <b id="rN">-</b></span></div>
+  </div>
+
+  <div class="att" aria-live="polite">
+    <span class="att-v"><b id="attN">1</b>번째 시도</span>
+    <span class="cmptag" id="attCmp" hidden></span>
+    <span class="att-s tally" id="attLast" title="평균 시도횟수와 비교한 성공 횟수"></span>
+  </div>
+
+  <div class="counter">
+    <span class="big" id="big">0</span>
+    <div class="cmeta">
+      <div class="cline"><span class="chip" id="chip">대기 중</span><span class="how" id="how">회 통과</span></div>
+      <div class="roll" id="roll">시작을 누르면 판정이 시작됩니다.</div>
+      <div class="trail" id="trail" aria-hidden="true"></div>
     </div>
   </div>
-  <div id="boardOuter">
-    <div id="board">
-      <svg id="lines" viewBox="0 0 8 8" preserveAspectRatio="none"></svg>
+
+  <div class="actions">
+    <button class="btn" id="start" type="button">시작</button>
+    <button class="btn ghost" id="skip" type="button" disabled>스킵</button>
+  </div>
+
+  <section class="set" aria-label="설정">
+    <div class="row">
+      <label class="lbl" for="x">통과 확률</label>
+      <div class="suffix"><input class="input" id="x" type="number" inputmode="decimal" min="0" max="100" step="any" value="50"><span>%</span></div>
     </div>
-    <div id="combo"></div>
-    <div id="toast"></div>
-  </div>
-  <div id="hint">같은 색 타일 3개 이상이 8방향으로 붙어있으면 터치해서 연쇄로 터뜨리세요</div>
+    <div class="row">
+      <span class="lbl">성공 조건</span>
+      <div class="seg" role="group" aria-label="성공 조건">
+        <button type="button" data-mode="gte" aria-pressed="true">이상</button>
+        <button type="button" data-mode="lte" aria-pressed="false">이하</button>
+        <button type="button" data-mode="range" aria-pressed="false">범위</button>
+        <button type="button" data-mode="eq" aria-pressed="false">정확히</button>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="z" id="zlbl">목표 횟수</label>
+      <div class="nums">
+        <span class="stepper"><button type="button" data-step="z:-1" aria-label="1 줄이기">−</button><input class="input" id="z" type="number" inputmode="numeric" min="0" step="1" value="2"><button type="button" data-step="z:1" aria-label="1 늘리기">+</button></span>
+        <span class="tilde" id="tilde" hidden>~</span>
+        <span class="stepper" id="z2wrap" hidden><button type="button" data-step="z2:-1" aria-label="최대 횟수 1 줄이기">−</button><input class="input" id="z2" type="number" inputmode="numeric" min="0" step="1" value="4" aria-label="최대 횟수"><button type="button" data-step="z2:1" aria-label="최대 횟수 1 늘리기">+</button></span>
+        <span class="unit">회</span>
+      </div>
+    </div>
+    <div class="rule" id="rule"></div>
+    <div class="err" id="err" role="alert" hidden></div>
+  </section>
+  <p class="hint">스페이스바: 시작 / 스킵</p>
 </div>
 
-<div id="modeOverlay" class="overlay show">
-  <h2 id="modeOverlayTitle">모드 선택</h2>
-  <p id="modeSubtitle">플레이 방식을 골라주세요</p>
-  <button id="resumeBtn" class="resumeBtn">▶ 이어하기</button>
-  <div class="modeList">
-    <button class="modeBtn" data-mode="endless">
-      <span class="modeTitle">엔드리스</span>
-      <span class="modeDesc">시간 제한 없이 자유롭게</span>
-      <span class="modeBest" data-best="endless">최고 점수: 0</span>
-    </button>
-    <button class="modeBtn" data-mode="time60">
-      <span class="modeTitle">60초 타임어택</span>
-      <span class="modeDesc">60초 안에 최고 점수 찍기</span>
-      <span class="modeBest" data-best="time60">최고 점수: 0</span>
-    </button>
-    <button class="modeBtn" data-mode="sprint3000">
-      <span class="modeTitle">3000점 스프린트</span>
-      <span class="modeDesc">3000점을 최대한 빨리 달성</span>
-      <span class="modeBest" data-best="sprint3000">최고 기록: -</span>
-    </button>
-    <button class="modeBtn" data-mode="moves20">
-      <span class="modeTitle">20회 제한</span>
-      <span class="modeDesc">20번의 매치 안에 최고 점수</span>
-      <span class="modeBest" data-best="moves20">최고 점수: 0</span>
-    </button>
+<div class="scrim" id="statsModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="mh"><h2 id="mtitle">통계</h2><button class="ib" data-close type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="cmp">
+      <span></span><span class="ch">이론</span><span class="ch">실제</span>
+      <span class="rh">성공 확률</span><b id="sTP">-</b><b id="sRP">-</b>
+      <span class="rh">평균 시도횟수</span><b id="sTN">-</b><b id="sRN">-</b>
+    </div>
+    <dl>
+      <dt>진행한 판</dt><dd id="rRuns">0</dd>
+      <dt>성공 / 실패</dt><dd id="rSF">0 / 0</dd>
+    </dl>
+    <div style="display:grid;gap:6px">
+      <span class="lbl">최근 기록 (멈춘 숫자)</span>
+      <div class="hist" id="hist"><span>아직 없음</span></div>
+    </div>
+    <div class="mbtns">
+      <button class="btn ghost sm" id="batch" type="button">1,000판 즉시 계산</button>
+      <button class="btn ghost sm" id="reset" type="button">기록 초기화</button>
+    </div>
   </div>
 </div>
 
-<div id="overlay" class="overlay">
-  <h2 id="resultTitle">결과</h2>
-  <p id="finalScore">점수: 0</p>
-  <p id="bestNote"></p>
-  <div class="overlayBtns">
-    <button id="retryBtn">다시하기</button>
-    <button id="changeModeBtn" class="secondaryBtn">모드 선택</button>
+<div class="scrim" id="setModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stitle">
+    <div class="mh"><h2 id="stitle">설정</h2><button class="ib" data-close type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="grp">
+      <span class="lbl">올라가는 속도</span>
+      <div class="speed">
+        <input id="speed" type="range" min="20" max="600" step="10" value="220" aria-label="판정 간격">
+        <output id="speedv" for="speed"></output>
+      </div>
+      <label class="toggle" for="accel">
+        <input id="accel" type="checkbox"><span class="track" aria-hidden="true"></span>점점 빨라지기
+      </label>
+      <span class="note">켜면 통과할 때마다 간격이 12%씩 짧아집니다 (최소 15ms).</span>
+    </div>
+    <div class="grp">
+      <span class="lbl">소수점 자리수</span>
+      <div class="decgrid">
+        <span></span><span class="ch">확률</span><span class="ch">횟수</span>
+        <span class="rh">메인</span>
+        <span class="stepper"><button type="button" data-step="decMP:-1" aria-label="메인 확률 소수점 줄이기">−</button><input class="input" id="decMP" type="number" inputmode="numeric" min="0" max="12" step="1" value="2" aria-label="메인 확률 소수점"><button type="button" data-step="decMP:1" aria-label="메인 확률 소수점 늘리기">+</button></span>
+        <span class="stepper"><button type="button" data-step="decMN:-1" aria-label="메인 횟수 소수점 줄이기">−</button><input class="input" id="decMN" type="number" inputmode="numeric" min="0" max="12" step="1" value="2" aria-label="메인 횟수 소수점"><button type="button" data-step="decMN:1" aria-label="메인 횟수 소수점 늘리기">+</button></span>
+        <span class="rh">통계</span>
+        <span class="stepper"><button type="button" data-step="decSP:-1" aria-label="통계 확률 소수점 줄이기">−</button><input class="input" id="decSP" type="number" inputmode="numeric" min="0" max="12" step="1" value="4" aria-label="통계 확률 소수점"><button type="button" data-step="decSP:1" aria-label="통계 확률 소수점 늘리기">+</button></span>
+        <span class="stepper"><button type="button" data-step="decSN:-1" aria-label="통계 횟수 소수점 줄이기">−</button><input class="input" id="decSN" type="number" inputmode="numeric" min="0" max="12" step="1" value="2" aria-label="통계 횟수 소수점"><button type="button" data-step="decSN:1" aria-label="통계 횟수 소수점 늘리기">+</button></span>
+      </div>
+      <span class="note" id="decPreview"></span>
+    </div>
   </div>
 </div>
 
 <script>
-(function(){
-  const ROWS = 8, COLS = 8, MIN_GROUP = 3;
-  const COLOR_HEX = ['#ff4d6d','#4dabf7','#51cf66','#ffd43b','#cc5de8'];
-  const CELL = 100 / 8;
+const $ = id => document.getElementById(id);
+const S = { mode:'gte', timer:null, count:0, running:false, runs:0, wins:0, hist:[], cfg:null, lastDecided:null, att:0, succ:[] };
 
-  // ---------- sound engine (synthesized, no audio files needed) ----------
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  let actx = null;
-  function ensureAudio(){
-    if(!AudioCtx) return null;
-    if(!actx) actx = new AudioCtx();
-    if(actx.state === 'suspended') actx.resume();
-    return actx;
-  }
+/* ---------- 효과음 ---------- */
+const Snd = {
+  ctx:null, on:true,
+  init(){ if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ this.ctx=null; } }
+          if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(freq,dur,type='triangle',vol=0.12,when=0,slideTo=null){
+    if(!this.on||!this.ctx) return;
+    const t=this.ctx.currentTime+when, o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t+dur+0.02);
+  },
+  pass(k){ const st=[0,2,4,7,9], n=Math.min(k-1,29), semi=12*Math.floor(n/5)+st[n%5]; this.tone(392*Math.pow(2,Math.min(semi,36)/12),0.07,'triangle',0.10); },
+  stop(){ this.tone(180,0.18,'square',0.05,0,90); },
+  locked(win){ win?this.tone(1568,0.12,'sine',0.08):this.tone(220,0.12,'sine',0.08); },
+  win(){ [523.25,659.25,783.99,1046.5].forEach((f,i)=>this.tone(f,0.22,'triangle',0.11,i*0.08)); },
+  lose(){ this.tone(311.13,0.22,'sawtooth',0.05,0); this.tone(233.08,0.36,'sawtooth',0.05,0.16,196); },
+  click(){ this.tone(900,0.03,'sine',0.05); }
+};
+try{ if(localStorage.getItem('chainroll-sound')==='off') Snd.on=false; }catch(e){}
+function paintSound(){
+  $('sound').setAttribute('aria-pressed',Snd.on);
+  $('sound').title = Snd.on?'효과음 켜짐':'효과음 꺼짐';
+  $('waves').toggleAttribute('hidden',!Snd.on); $('mute').toggleAttribute('hidden',Snd.on);
+}
+$('sound').addEventListener('click',()=>{ Snd.on=!Snd.on; paintSound(); Snd.init(); Snd.click(); try{ localStorage.setItem('chainroll-sound',Snd.on?'on':'off'); }catch(e){} });
+paintSound();
 
-  // rising "buzz" as each connection line locks in (드르르릉, pitch climbs with each link)
-  function playConnectTick(edgeIndex){
-    const ctx = ensureAudio();
-    if(!ctx) return;
-    const t0 = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'square';
-    const base = 240 + edgeIndex * 34;
-    osc.frequency.setValueAtTime(base, t0);
-    osc.frequency.exponentialRampToValueAtTime(base * 1.55, t0 + 0.09);
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.14, t0 + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.14);
-  }
+/* ---------- 계산 ---------- */
+function cfg(){
+  const X=parseFloat($('x').value), Z=Number($('z').value), Z2=Number($('z2').value);
+  const dg=id=>{ const v=parseInt($(id).value,10); return v>=0?Math.min(v,12):0; };
+  const d={mp:dg('decMP'),mn:dg('decMN'),sp:dg('decSP'),sn:dg('decSN')};
+  let err='';
+  if(!(X>0&&X<100)) err='통과 확률은 0보다 크고 100보다 작게 입력해 주세요.';
+  else if(!Number.isInteger(Z)||Z<0) err=(S.mode==='range'?'최소 횟수':'목표 횟수')+'는 0 이상의 정수로 입력해 주세요.';
+  else if(S.mode==='range'&&(!Number.isInteger(Z2)||Z2<Z)) err='최대 횟수는 최소 횟수보다 크거나 같은 정수로 입력해 주세요.';
+  return {p:X/100,X,Z,Z2,d,err,mode:S.mode};
+}
+function decided(c,k){
+  if(c.mode==='gte') return k>=c.Z?'win':null;
+  if(c.mode==='lte') return k>c.Z?'lose':null;
+  if(c.mode==='range') return k>c.Z2?'lose':null;
+  return k>c.Z?'lose':null;
+}
+function judge(c,k){
+  if(c.mode==='gte') return k>=c.Z;
+  if(c.mode==='lte') return k<=c.Z;
+  if(c.mode==='range') return k>=c.Z&&k<=c.Z2;
+  return k===c.Z;
+}
+function theory(c){
+  const p=c.p, pw=n=>Math.pow(p,n);
+  if(c.mode==='gte') return pw(c.Z);
+  if(c.mode==='lte') return 1-pw(c.Z+1);
+  if(c.mode==='range') return pw(c.Z)-pw(c.Z2+1);
+  return pw(c.Z)*(1-p);
+}
+const fmt=(v,d)=>Number.isFinite(v)?v.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d}):'-';
+const pct=(v,d)=>fmt(v*100,d)+'%';
+const times=(P,d)=>P>0?fmt(1/P,d)+'번':'성공 불가';
+function ruleText(c){
+  const x=`${c.X}%`;
+  if(c.mode==='gte') return `${x} 판정을 <b>${c.Z}번 이상</b> 연속 통과하면 성공`;
+  if(c.mode==='lte') return `연속 통과가 <b>${c.Z}번 이하</b>에서 멈추면 성공`;
+  if(c.mode==='range') return `연속 통과가 <b>${c.Z}~${c.Z2}번</b>에서 멈추면 성공`;
+  return `<b>정확히 ${c.Z}번</b> 통과하고 멈추면 성공`;
+}
+function refresh(){
+  const c=cfg();
+  $('err').hidden=!c.err; $('err').textContent=c.err;
+  $('rule').innerHTML=c.err?'':ruleText(c); $('rule').hidden=!!c.err;
+  $('speedv').textContent=$('speed').value+'ms';
+  const ranged=S.mode==='range';
+  $('z2wrap').hidden=!ranged; $('tilde').hidden=!ranged;
+  $('zlbl').textContent=ranged?'횟수 범위':'목표 횟수';
+  $('start').disabled=!!c.err||S.running; $('batch').disabled=!!c.err||S.running;
+  document.querySelectorAll('.seg button').forEach(b=>b.disabled=S.running);
+  const P=c.err?NaN:Math.max(0,theory(c)), d=c.d;
+  const tp=dp=>c.err?'-':pct(P,dp), tn=dn=>c.err?'-':times(P,dn);
+  const rp=dp=>S.runs?pct(S.wins/S.runs,dp):'-';
+  const rn=dn=>S.runs?(S.wins?fmt(S.runs/S.wins,dn)+'번':'성공 없음'):'-';
+  S.decN=d.mn;
+  $('tP').textContent=tp(d.mp); $('tN').textContent=tn(d.mn);
+  $('rP').textContent=rp(d.mp); $('rN').textContent=rn(d.mn);
+  $('sTP').textContent=tp(d.sp); $('sTN').textContent=tn(d.sn);
+  $('sRP').textContent=rp(d.sp); $('sRN').textContent=rn(d.sn);
+  $('decPreview').textContent=`예: 메인 ${fmt(12.3456789,d.mp)}% · ${fmt(8.1003,d.mn)}번 / 통계 ${fmt(12.3456789,d.sp)}% · ${fmt(8.1003,d.sn)}번`;
+  $('rRuns').textContent=S.runs.toLocaleString('ko-KR');
+  $('rSF').textContent=`${S.wins.toLocaleString('ko-KR')} / ${(S.runs-S.wins).toLocaleString('ko-KR')}`;
+  return c;
+}
 
-  // glassy "차자장" shatter burst when a tile pops
-  function playPopGlass(popIndex){
-    const ctx = ensureAudio();
-    if(!ctx) return;
-    const t0 = ctx.currentTime;
+/* ---------- 화면 ---------- */
+function setChip(state){
+  const ch=$('chip');
+  ch.className='chip'+(state==='win'?' good':state==='lose'?' bad':S.running?' live':'');
+  ch.textContent=state==='win'?'성공 확정':state==='lose'?'실패 확정':S.running?'진행 중':'대기 중';
+}
+function showCount(k){ const b=$('big'); b.textContent=k; b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+function addMark(ok){ const i=document.createElement('i'); if(!ok) i.className='x'; const t=$('trail'); t.appendChild(i); while(t.children.length>60) t.removeChild(t.firstChild); }
+function paintHist(){ $('hist').innerHTML=S.hist.length?S.hist.map(h=>`<span class="${h.win?'g':'b'}">${h.k}</span>`).join(''):'<span>아직 없음</span>'; }
+/* 성공까지의 시도 횟수 (직접 플레이한 판만, 1,000판 계산은 제외) */
+function cmpAvg(n,avg){ if(!Number.isFinite(avg)) return 'eq'; return Math.abs(n-avg)<1e-9?'eq':n<avg?'under':'over'; }
+const CMP_TXT={under:'평균 미만',eq:'평균 정확',over:'평균 초과'};
+function countAttempt(win,avg){
+  S.att++;
+  if(!win) return null;
+  const e={n:S.att,avg,r:cmpAvg(S.att,avg)}; S.succ.unshift(e); S.att=0; return e;
+}
+function paintAttempt(n,state,e){
+  const v=$('attN').parentElement;
+  $('attN').textContent=n;
+  v.classList.toggle('won',state==='won');
+  v.lastChild.textContent = state==='won'?'번째 시도에 성공':state==='lost'?'번째 시도 실패':'번째 시도';
+  const tag=$('attCmp');
+  if(state==='won'&&e){
+    tag.hidden=false; tag.className='cmptag '+e.r;
+    tag.textContent=`${CMP_TXT[e.r]} (평균 ${fmt(e.avg,S.decN)}번)`;
+  } else tag.hidden=true;
+  const t={over:0,eq:0,under:0}; S.succ.forEach(x=>t[x.r]++);
+  $('attLast').innerHTML = `<span class="tl">초과</span><b class="over">${t.over}</b><i>|</i><span class="tl">정확</span><b class="eq">${t.eq}</b><i>|</i><span class="tl">미만</span><b class="under">${t.under}</b>`;
+}
+function pushHist(k,win){ S.hist.unshift({k,win}); if(S.hist.length>40) S.hist.length=40; paintHist(); }
 
-    const dur = 0.16;
-    const bufferSize = Math.floor(ctx.sampleRate * dur);
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for(let i = 0; i < bufferSize; i++){
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
-    }
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-    const hp = ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 2200 + Math.min(popIndex, 10) * 70;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.22, t0);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    noise.connect(hp).connect(noiseGain).connect(ctx.destination);
-    noise.start(t0);
+function finish(c,k,how){
+  clearTimeout(S.timer); S.running=false;
+  const win=judge(c,k);
+  S.runs++; if(win) S.wins++; pushHist(k,win);
+  const e=countAttempt(win, 1/theory(c));
+  win ? paintAttempt(e.n,'won',e) : paintAttempt(S.att,'lost');
+  $('big').textContent=k; $('big').style.color=win?'var(--good)':'var(--bad)';
+  const ch=$('chip'); ch.className='chip '+(win?'good':'bad'); ch.textContent=win?'성공':'실패';
+  $('how').textContent=how;
+  $('start').textContent='다시 시작'; $('skip').disabled=true;
+  setTimeout(()=>win?Snd.win():Snd.lose(),60);
+  refresh();
+}
+function start(){
+  Snd.init();
+  const c=refresh(); if(c.err||S.running) return;
+  S.running=true; S.count=0; S.cfg=c; S.lastDecided=decided(c,0);
+  $('big').textContent='0'; $('big').style.color=''; $('trail').innerHTML=''; $('how').textContent='회 통과';
+  $('skip').disabled=false; refresh(); setChip(S.lastDecided);
+  paintAttempt(S.att+1,'now');
+  S.timer=setTimeout(tick,120);
+}
+function tick(){
+  const c=S.cfg, r=Math.random()*100, ok=r<c.X;
+  $('roll').textContent=`#${S.count+1}  ${r.toFixed(2)} ${ok?'<':'≥'} ${c.X}  ${ok?'통과':'실패'}`;
+  addMark(ok);
+  if(!ok){ Snd.stop(); finish(c,S.count,`${S.count}회 통과 후 멈춤`); return; }
+  S.count++; showCount(S.count); Snd.pass(S.count);
+  const d=decided(c,S.count);
+  if(d&&!S.lastDecided) Snd.locked(d==='win');
+  S.lastDecided=d; setChip(d);
+  const base=Number($('speed').value);
+  S.timer=setTimeout(tick, $('accel').checked?Math.max(15,base*Math.pow(0.88,S.count)):base);
+}
+function skip(){
+  if(!S.running) return;
+  clearTimeout(S.timer);
+  const c=S.cfg; let k=S.count;
+  if(decided(c,k)){ finish(c,k,`스킵 · ${k}회에서 확정`); return; }
+  while(!decided(c,k)&&Math.random()<c.p) k++;
+  $('roll').textContent='남은 판정을 즉시 계산했습니다.';
+  finish(c,k,`스킵 · 즉시 계산 → ${k}회`);
+}
+function batch(){
+  Snd.init();
+  const c=refresh(); if(c.err||S.running) return;
+  let last=null;
+  for(let n=0;n<1000;n++){ let k=0; while(!decided(c,k)&&Math.random()<c.p) k++; const win=judge(c,k); S.runs++; if(win) S.wins++; last={k,win}; }
+  pushHist(last.k,last.win); Snd.click(); refresh();
+}
 
-    for(let s = 0; s < 3; s++){
-      const freq = 1500 + Math.random() * 2200 + popIndex * 12;
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const start = t0 + Math.random() * 0.03;
-      g.gain.setValueAtTime(0.0001, start);
-      g.gain.exponentialRampToValueAtTime(0.11, start + 0.006);
-      g.gain.exponentialRampToValueAtTime(0.0001, start + 0.09 + Math.random() * 0.05);
-      osc.connect(g).connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + 0.18);
-    }
-  }
+/* ---------- 팝업 ---------- */
+let lastFocus=null, openModal=null;
+function openM(id){ lastFocus=document.activeElement; refresh(); openModal=$(id); openModal.hidden=false; openModal.querySelector('[data-close]').focus(); }
+function closeM(){ if(!openModal) return; openModal.hidden=true; openModal=null; saveSettings(); if(lastFocus) lastFocus.focus(); }
+$('statsBtn').addEventListener('click',()=>openM('statsModal'));
+$('setBtn').addEventListener('click',()=>openM('setModal'));
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeM));
+document.querySelectorAll('.scrim').forEach(s=>s.addEventListener('click',e=>{ if(e.target===s) closeM(); }));
 
-  // soft low thud for an invalid tap (group too small)
-  function playMiss(){
-    const ctx = ensureAudio();
-    if(!ctx) return;
-    const t0 = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(160, t0);
-    osc.frequency.exponentialRampToValueAtTime(90, t0 + 0.12);
-    gain.gain.setValueAtTime(0.001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.1, t0 + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.16);
-  }
+/* 설정 기억 (이 브라우저에만) */
+const SET_IDS=['speed','decMP','decMN','decSP','decSN'];
+function saveSettings(){ try{ const o={accel:$('accel').checked}; SET_IDS.forEach(i=>o[i]=$(i).value); localStorage.setItem('chainroll-set',JSON.stringify(o)); }catch(e){} }
+try{ const o=JSON.parse(localStorage.getItem('chainroll-set')||'null'); if(o){ SET_IDS.forEach(i=>{ if(o[i]!=null) $(i).value=o[i]; }); $('accel').checked=!!o.accel; } }catch(e){}
 
-  const boardEl = document.getElementById('board');
-  const linesEl = document.getElementById('lines');
-  const scoreEl = document.getElementById('score');
-  const stat2LabelEl = document.getElementById('stat2Label');
-  const stat2ValEl = document.getElementById('stat2Val');
-  const overlayEl = document.getElementById('overlay');
-  const modeOverlayEl = document.getElementById('modeOverlay');
-  const resultTitleEl = document.getElementById('resultTitle');
-  const finalScoreEl = document.getElementById('finalScore');
-  const bestNoteEl = document.getElementById('bestNote');
-  const toastEl = document.getElementById('toast');
-  const boardOuter = document.getElementById('boardOuter');
-  const comboEl = document.getElementById('combo');
-  const resumeBtnEl = document.getElementById('resumeBtn');
-  const modeOverlayTitleEl = document.getElementById('modeOverlayTitle');
-  const modeSubtitleEl = document.getElementById('modeSubtitle');
-
-  let grid = [];         // grid[r][c] = tile object or null
-  let score = 0;
-  let busy = true;       // true while a pop/cascade animation is running (also blocks input before a mode is chosen)
-  let idSeq = 0;
-
-  // ---------- game modes ----------
-  const MODES = {
-    endless:    { key:'endless',    type:'endless', label:'엔드리스' },
-    time60:     { key:'time60',     type:'time',    label:'60초 타임어택', duration:60 },
-    sprint3000: { key:'sprint3000', type:'sprint',  label:'3000점 스프린트', target:3000 },
-    moves20:    { key:'moves20',    type:'moves',   label:'20회 제한', moves:20 }
-  };
-  let currentMode = null;   // one of MODES.*
-  let modeState = {};       // runtime state for the active mode (timers, counters, flags)
-
-  function bestKey(modeKey){ return 'colorCrush_best_' + modeKey; }
-  function loadBest(modeKey){
-    const v = localStorage.getItem(bestKey(modeKey));
-    return v === null ? null : parseFloat(v);
-  }
-  function saveBestIfBetter(modeKey, value, higherIsBetter){
-    const cur = loadBest(modeKey);
-    if(cur === null || (higherIsBetter ? value > cur : value < cur)){
-      localStorage.setItem(bestKey(modeKey), String(value));
-      return true;
-    }
-    return false;
-  }
-  function formatBestDisplay(modeKey){
-    const mode = MODES[modeKey];
-    const v = loadBest(modeKey);
-    if(mode.type === 'sprint'){
-      return v === null ? '최고 기록: -' : '최고 기록: ' + formatDuration(v);
-    }
-    return '최고 점수: ' + (v === null ? 0 : Math.round(v));
-  }
-  function formatDuration(ms){
-    return (ms / 1000).toFixed(1) + '초';
-  }
-
-  function randColor(){ return Math.floor(Math.random() * 5); }
-
-  function emptyGrid(){
-    return Array.from({length: ROWS}, () => Array(COLS).fill(null));
-  }
-
-  // ---------- tile element helpers ----------
-  function createTileEl(){
-    const wrap = document.createElement('div');
-    wrap.className = 'tile-slot';
-    const face = document.createElement('div');
-    face.className = 'tile-face';
-    wrap.appendChild(face);
-    boardEl.appendChild(wrap);
-    return wrap;
-  }
-
-  function setFace(tile){
-    const face = tile.el.firstChild;
-    face.className = 'tile-face c' + tile.color;
-  }
-
-  function updatePos(tile){
-    tile.el.style.top = (tile.r * CELL) + '%';
-    tile.el.style.left = (tile.c * CELL) + '%';
-  }
-
-  function placeInstant(tile){
-    tile.el.classList.add('no-anim');
-    updatePos(tile);
-    void tile.el.offsetWidth;
-    tile.el.classList.remove('no-anim');
-  }
-
-  function makeTile(r, c, color){
-    const tile = { id: idSeq++, r, c, color, el: createTileEl() };
-    setFace(tile);
-    tile.el.addEventListener('pointerup', () => onTileTap(tile));
-    return tile;
-  }
-
-  // drop a tile down into its (already-set) r/c from `above` rows higher, with a delay
-  function dropIn(tile, above, delayMs){
-    const realR = tile.r;
-    tile.r = realR - above;
-    placeInstant(tile);
-    tile.r = realR;
-    tile.el.style.transitionDelay = delayMs + 'ms';
-    requestAnimationFrame(() => updatePos(tile));
-    setTimeout(() => { tile.el.style.transitionDelay = '0ms'; }, delayMs + 420);
-  }
-
-  // ---------- board generation ----------
-  function wouldMatch(r, c, color){
-    // check already-placed neighbors (row-major fill order) for an immediate 3+ group
-    const dirs = [[0,-1],[-1,0],[-1,-1],[-1,1]];
-    let count = 0;
-    const seen = new Set();
-    const stack = [[r,c]];
-    seen.add(r+','+c);
-    while(stack.length){
-      const [cr,cc] = stack.pop();
-      for(const [dr,dc] of [[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[-1,1],[1,-1],[1,1]]){
-        const nr=cr+dr, nc=cc+dc, key=nr+','+nc;
-        if(nr<0||nr>=ROWS||nc<0||nc>=COLS||seen.has(key)) continue;
-        if(nr>r || (nr===r && nc>c)) continue; // only already-placed cells
-        if(!grid[nr] || !grid[nr][nc]) continue;
-        if(grid[nr][nc].color !== color) continue;
-        seen.add(key);
-        count++;
-        stack.push([nr,nc]);
-      }
-    }
-    return count >= 2; // this cell + 2 more = 3
-  }
-
-  function buildInitialBoard(){
-    grid = emptyGrid();
-    boardEl.querySelectorAll('.tile-slot').forEach(el => el.remove());
-    for(let r=0;r<ROWS;r++){
-      for(let c=0;c<COLS;c++){
-        let color, tries=0;
-        do { color = randColor(); tries++; }
-        while(wouldMatch(r,c,color) && tries < 12);
-        const tile = makeTile(r,c,color);
-        grid[r][c] = tile;
-        dropIn(tile, ROWS + r*0.4 + Math.random()*2, c*45);
-      }
-    }
-    setTimeout(ensurePlayable, 700);
-  }
-
-  // ---------- component / match detection ----------
-  function findComponent(r, c, visited){
-    const color = grid[r][c].color;
-    const stack = [[r,c]];
-    const group = [];
-    visited.add(r+','+c);
-    while(stack.length){
-      const [cr,cc] = stack.pop();
-      group.push([cr,cc]);
-      for(let dr=-1;dr<=1;dr++){
-        for(let dc=-1;dc<=1;dc++){
-          if(dr===0&&dc===0) continue;
-          const nr=cr+dr, nc=cc+dc, key=nr+','+nc;
-          if(nr<0||nr>=ROWS||nc<0||nc>=COLS||visited.has(key)) continue;
-          if(!grid[nr][nc] || grid[nr][nc].color!==color) continue;
-          visited.add(key);
-          stack.push([nr,nc]);
-        }
-      }
-    }
-    return group;
-  }
-
-  function boardHasMove(){
-    const visited = new Set();
-    for(let r=0;r<ROWS;r++){
-      for(let c=0;c<COLS;c++){
-        if(!grid[r][c] || visited.has(r+','+c)) continue;
-        const group = findComponent(r,c,visited);
-        if(group.length >= MIN_GROUP) return true;
-      }
-    }
-    return false;
-  }
-
-  function ensurePlayable(){
-    if(busy) return;
-    if(!boardHasMove()){
-      showToast('섞는 중...');
-      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-        grid[r][c].color = randColor();
-        setFace(grid[r][c]);
-        grid[r][c].el.classList.add('shuffle-flash');
-      }
-      setTimeout(() => {
-        document.querySelectorAll('.shuffle-flash').forEach(el => el.classList.remove('shuffle-flash'));
-      }, 220);
-      setTimeout(hideToast, 450);
-      if(!boardHasMove()) ensurePlayable(); // extremely rare, resolves immediately with no wait
-    }
-  }
-
-  function showToast(msg){
-    toastEl.textContent = msg;
-    toastEl.classList.add('show');
-  }
-  function hideToast(){ toastEl.classList.remove('show'); }
-
-  // ---------- interaction ----------
-  function onTileTap(tile){
-    if(busy) return;
-    ensureAudio(); // must be called directly from the user gesture to satisfy autoplay policies
-    const r = tile.r, c = tile.c;
-    if(!grid[r][c]) return;
-
-    // BFS in radiating order from tapped tile (8-directional, same color)
-    // parentOf records the tile each tile was *discovered from*, so the
-    // connection lines form a simple spanning tree (no closed triangles /
-    // mesh between same-colored tiles).
-    const color = grid[r][c].color;
-    const visited = new Set([r+','+c]);
-    const order = [tile];
-    const parentOf = new Map([[tile.id, null]]);
-    const queue = [[r,c]];
-    while(queue.length){
-      const [cr,cc] = queue.shift();
-      const curTile = grid[cr][cc];
-      for(let dr=-1;dr<=1;dr++){
-        for(let dc=-1;dc<=1;dc++){
-          if(dr===0&&dc===0) continue;
-          const nr=cr+dr, nc=cc+dc, key=nr+','+nc;
-          if(nr<0||nr>=ROWS||nc<0||nc>=COLS||visited.has(key)) continue;
-          if(!grid[nr][nc] || grid[nr][nc].color!==color) continue;
-          visited.add(key);
-          const neighborTile = grid[nr][nc];
-          order.push(neighborTile);
-          parentOf.set(neighborTile.id, curTile);
-          queue.push([nr,nc]);
-        }
-      }
-    }
-
-    if(order.length < MIN_GROUP){
-      playMiss();
-      tile.el.classList.add('shake');
-      setTimeout(()=>tile.el.classList.remove('shake'), 280);
-      return;
-    }
-
-    if(currentMode.type === 'moves'){
-      modeState.movesLeft--;
-      stat2ValEl.textContent = modeState.movesLeft;
-      if(modeState.movesLeft <= 0) modeState.pendingEnd = true;
-    }
-
-    popGroup(order, color, parentOf);
-  }
-
-  // ---------- pop sequence: lines + cascading bursts (accelerating like a lightning chain) ----------
-  function cascadeDelays(n){
-    // each successive pop fires sooner than the last, capped at a fast minimum
-    const delays = [];
-    let t = 0;
-    let interval = 115;
-    for(let i = 0; i < n; i++){
-      delays.push(t);
-      interval = Math.max(16, interval * 0.8);
-      t += interval;
-    }
-    return delays;
-  }
-
-  function popGroup(order, color, parentOf){
-    busy = true;
-    const connectDuration = drawLines(order, parentOf);
-    const popStart = connectDuration + 90; // small beat after the last connection lands
-
-    const delays = cascadeDelays(order.length);
-    const popDur = 240;
-
-    comboEl.style.color = COLOR_HEX[color];
-    comboEl.textContent = '';
-    comboEl.classList.remove('show');
-
-    order.forEach((tile, i) => {
-      setTimeout(() => {
-        burstAt(tile.r, tile.c, COLOR_HEX[color]);
-        playPopGlass(i);
-        tile.el.classList.add('popping');
-        const gained = 10 + i * 4;
-        score += gained;
-        scoreEl.textContent = score;
-        floatScore(tile.r, tile.c, gained);
-        grid[tile.r][tile.c] = null;
-
-        if(currentMode.type === 'endless'){
-          if(saveBestIfBetter('endless', score, true)) stat2ValEl.textContent = score;
-        } else if(currentMode.type === 'sprint' && !modeState.finished && score >= currentMode.target){
-          modeState.finished = true;
-          modeState.pendingEnd = true;
-          modeState.elapsedMs = performance.now() - modeState.startTs;
-          if(modeState.intervalId) clearInterval(modeState.intervalId);
-        }
-
-        comboEl.textContent = (i + 1) + ' COMBO';
-        comboEl.classList.add('show');
-        comboEl.classList.remove('pulse');
-        void comboEl.offsetWidth;
-        comboEl.classList.add('pulse');
-      }, popStart + delays[i]);
-    });
-
-    const totalDelay = popStart + delays[order.length - 1] + popDur + 80;
-    setTimeout(() => {
-      comboEl.classList.remove('show');
-      clearLines();
-      order.forEach(t => t.el.remove());
-      settleBoard();
-    }, totalDelay);
-  }
-
-  function drawLines(order, parentOf){
-    linesEl.innerHTML = '';
-    const LINE_STAGGER = 55;
-    const DRAW_DUR = 220;
-    let lastDelay = 0;
-
-    order.forEach((t, i) => {
-      const parent = parentOf.get(t.id);
-      if(!parent) return;
-      const dx = t.c - parent.c, dy = t.r - parent.r;
-      const len = Math.hypot(dx, dy);
-      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-      line.setAttribute('x1', parent.c + 0.5);
-      line.setAttribute('y1', parent.r + 0.5);
-      line.setAttribute('x2', t.c + 0.5);
-      line.setAttribute('y2', t.r + 0.5);
-      line.setAttribute('stroke', COLOR_HEX[t.color]);
-      line.setAttribute('stroke-width', '0.08');
-      line.style.color = COLOR_HEX[t.color];
-      line.style.strokeDasharray = len;
-      line.style.strokeDashoffset = len;
-      linesEl.appendChild(line);
-
-      const delay = (i - 1) * LINE_STAGGER; // tile 0 is the root (no line), so first edge is i=1
-      lastDelay = Math.max(lastDelay, delay);
-      setTimeout(() => {
-        line.style.strokeDashoffset = '0';
-        playConnectTick(i - 1);
-      }, Math.max(0, delay));
-    });
-
-    return lastDelay + DRAW_DUR; // total time for all connections to finish drawing
-  }
-
-  function clearLines(){
-    linesEl.innerHTML = '';
-  }
-
-  function burstAt(r, c, hex){
-    const b = document.createElement('div');
-    b.className = 'burst';
-    b.style.top = (r*CELL) + '%';
-    b.style.left = (c*CELL) + '%';
-    b.style.color = hex;
-    boardEl.appendChild(b);
-    setTimeout(() => b.remove(), 500);
-  }
-
-  function floatScore(r, c, gained){
-    const f = document.createElement('div');
-    f.className = 'float';
-    f.style.top = (r*CELL) + '%';
-    f.style.left = (c*CELL) + '%';
-    f.textContent = '+' + gained;
-    boardEl.appendChild(f);
-    setTimeout(() => f.remove(), 700);
-  }
-
-  // ---------- gravity + refill ----------
-  function settleBoard(){
-    let maxDelay = 0;
-    for(let c=0;c<COLS;c++){
-      let writeR = ROWS - 1;
-      for(let r=ROWS-1;r>=0;r--){
-        if(grid[r][c]){
-          const tile = grid[r][c];
-          if(r !== writeR){
-            grid[writeR][c] = tile;
-            grid[r][c] = null;
-            tile.r = writeR;
-            tile.el.style.transitionDelay = '0ms';
-            updatePos(tile);
-          }
-          writeR--;
-        }
-      }
-      let step = 0;
-      for(let r=writeR; r>=0; r--){
-        step++;
-        const color = randColor();
-        const tile = makeTile(r, c, color);
-        grid[r][c] = tile;
-        const delay = (writeR - r) * 55;
-        maxDelay = Math.max(maxDelay, delay);
-        dropIn(tile, writeR - r + 2 + Math.random(), delay);
-      }
-    }
-    setTimeout(() => {
-      busy = false;
-      if(modeState.pendingEnd){
-        endRun();
-      } else {
-        ensurePlayable();
-      }
-    }, maxDelay + 420);
-  }
-
-  // ---------- lifecycle ----------
-  let gameActive = false; // true once a run has started and hasn't ended yet (used to offer "resume")
-
-  function clearModeTimer(){
-    if(modeState.intervalId){
-      clearInterval(modeState.intervalId);
-      modeState.intervalId = null;
-    }
-  }
-
-  function startTimeInterval(){
-    modeState.intervalId = setInterval(() => {
-      modeState.timeLeft--;
-      stat2ValEl.textContent = Math.max(0, modeState.timeLeft) + '초';
-      if(modeState.timeLeft <= 0){
-        clearModeTimer();
-        endRun();
-      }
-    }, 1000);
-  }
-
-  function startSprintInterval(){
-    modeState.intervalId = setInterval(() => {
-      stat2ValEl.textContent = formatDuration(performance.now() - modeState.startTs);
-    }, 100);
-  }
-
-  function populateModeBests(){
-    document.querySelectorAll('.modeBest').forEach(el => {
-      el.textContent = formatBestDisplay(el.dataset.best);
-    });
-  }
-
-  // opening the menu mid-run pauses the current run (timers stop, board hidden)
-  // instead of discarding it, and offers a "이어하기" (resume) button.
-  function openModeSelect(){
-    if(gameActive && currentMode && currentMode.type === 'sprint'){
-      modeState.pausedAt = performance.now(); // remember when we paused so resume can skip this gap
-    }
-    clearModeTimer();
-    busy = true; // block board input while the menu is open
-    populateModeBests();
-    overlayEl.classList.remove('show');
-    document.body.classList.add('menu-open');
-    modeOverlayEl.classList.add('show');
-    resumeBtnEl.classList.toggle('show', gameActive);
-    modeOverlayTitleEl.textContent = gameActive ? '일시정지' : '모드 선택';
-    modeSubtitleEl.textContent = gameActive ? '이어서 하거나 다른 모드를 선택하세요' : '플레이 방식을 골라주세요';
-  }
-
-  function resumeGame(){
-    if(!gameActive) return;
-    modeOverlayEl.classList.remove('show');
-    document.body.classList.remove('menu-open');
-    busy = false;
-    if(currentMode.type === 'time'){
-      startTimeInterval();
-    } else if(currentMode.type === 'sprint' && modeState.pausedAt){
-      modeState.startTs += (performance.now() - modeState.pausedAt);
-      modeState.pausedAt = null;
-      startSprintInterval();
-    }
-    ensurePlayable();
-  }
-
-  function startGame(modeKey){
-    currentMode = MODES[modeKey];
-    clearModeTimer();
-    modeState = { pendingEnd:false, finished:false };
-    gameActive = true;
-
-    score = 0;
-    scoreEl.textContent = '0';
-    modeOverlayEl.classList.remove('show');
-    document.body.classList.remove('menu-open');
-    overlayEl.classList.remove('show');
-    busy = false;
-
-    if(currentMode.type === 'endless'){
-      stat2LabelEl.textContent = 'BEST';
-      stat2ValEl.textContent = loadBest('endless') || 0;
-    } else if(currentMode.type === 'time'){
-      stat2LabelEl.textContent = 'TIME';
-      modeState.timeLeft = currentMode.duration;
-      stat2ValEl.textContent = modeState.timeLeft + '초';
-      startTimeInterval();
-    } else if(currentMode.type === 'sprint'){
-      stat2LabelEl.textContent = 'TIMER';
-      stat2ValEl.textContent = '0.0초';
-      modeState.startTs = performance.now();
-      startSprintInterval();
-    } else if(currentMode.type === 'moves'){
-      stat2LabelEl.textContent = 'MOVES';
-      modeState.movesLeft = currentMode.moves;
-      stat2ValEl.textContent = modeState.movesLeft;
-    }
-
-    buildInitialBoard();
-  }
-
-  function endRun(){
-    busy = true;
-    gameActive = false;
-    clearModeTimer();
-
-    let isNewBest = false;
-    if(currentMode.type === 'time'){
-      resultTitleEl.textContent = '타임 업!';
-      finalScoreEl.textContent = '점수: ' + score;
-      isNewBest = saveBestIfBetter('time60', score, true);
-      bestNoteEl.textContent = isNewBest ? '🎉 새 최고 기록!' : ('최고 점수: ' + loadBest('time60'));
-    } else if(currentMode.type === 'sprint'){
-      resultTitleEl.textContent = '3000점 달성!';
-      finalScoreEl.textContent = '기록: ' + formatDuration(modeState.elapsedMs);
-      isNewBest = saveBestIfBetter('sprint3000', modeState.elapsedMs, false);
-      bestNoteEl.textContent = isNewBest ? '🎉 새 최고 기록!' : ('최고 기록: ' + formatDuration(loadBest('sprint3000')));
-    } else if(currentMode.type === 'moves'){
-      resultTitleEl.textContent = '매치 종료';
-      finalScoreEl.textContent = '점수: ' + score;
-      isNewBest = saveBestIfBetter('moves20', score, true);
-      bestNoteEl.textContent = isNewBest ? '🎉 새 최고 기록!' : ('최고 점수: ' + loadBest('moves20'));
-    }
-
-    overlayEl.classList.add('show');
-  }
-
-  document.getElementById('resumeBtn').addEventListener('click', resumeGame);
-  document.getElementById('modeBtn').addEventListener('click', openModeSelect);
-  document.querySelectorAll('.modeBtn').forEach(btn => {
-    btn.addEventListener('click', () => startGame(btn.dataset.mode));
-  });
-  document.getElementById('retryBtn').addEventListener('click', () => startGame(currentMode.key));
-  document.getElementById('changeModeBtn').addEventListener('click', openModeSelect);
-
-  populateModeBests();
-})();
+/* ---------- 이벤트 ---------- */
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  if(S.running) return;
+  S.mode=b.dataset.mode;
+  document.querySelectorAll('.seg button').forEach(o=>o.setAttribute('aria-pressed',o===b));
+  Snd.init(); Snd.click(); refresh();
+}));
+document.querySelectorAll('[data-step]').forEach(b=>b.addEventListener('click',e=>{
+  e.preventDefault();
+  const [id,dv]=b.dataset.step.split(':'), el=$(id);
+  const v=(parseInt(el.value,10)||0)+Number(dv), min=Number(el.min), max=el.max!==''?Number(el.max):Infinity;
+  el.value=Math.min(max,Math.max(min,v)); refresh();
+}));
+['x','z','z2','decMP','decMN','decSP','decSN','speed','accel'].forEach(id=>$(id).addEventListener('input',refresh));
+$('start').addEventListener('click',start);
+$('skip').addEventListener('click',skip);
+$('batch').addEventListener('click',batch);
+$('reset').addEventListener('click',()=>{ S.runs=0; S.wins=0; S.hist=[]; S.att=0; S.succ=[]; paintHist(); paintAttempt(1,'now'); refresh(); });
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&openModal){ closeM(); return; }
+  if(e.code!=='Space'||openModal||['INPUT','SELECT','BUTTON','TEXTAREA'].includes(e.target.tagName)) return;
+  e.preventDefault(); S.running?skip():start();
+});
+refresh();
+paintAttempt(1,'now');
 </script>
-</body>
-</html>
